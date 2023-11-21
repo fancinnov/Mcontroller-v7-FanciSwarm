@@ -1,6 +1,7 @@
-# Mcontroller-v7-Mini
+# Mcontroller-v7-FanciSwarm
  
 ## 基于Mcontroller跨模态机器人运动控制器固件v7开发的FanciSwarm微型集群无人机固件---developed by Fancinnov
+## STM32H7处理器为FanciSwarm提供强大算力支持
 
 ## 开发文档和教程
 请登录[幻思创新Fancinnov官网](https://www.fancinnov.com/FanciSwarm.html)
