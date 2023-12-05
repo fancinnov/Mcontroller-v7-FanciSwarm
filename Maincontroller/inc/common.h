@@ -61,10 +61,10 @@
  # define AC_ATC_MULTI_RATE_RP_FILT_HZ      20.0f
 #endif
 #ifndef AC_ATC_MULTI_RATE_YAW_P
- # define AC_ATC_MULTI_RATE_YAW_P           0.1f
+ # define AC_ATC_MULTI_RATE_YAW_P           0.18f
 #endif
 #ifndef AC_ATC_MULTI_RATE_YAW_I
- # define AC_ATC_MULTI_RATE_YAW_I           0.15f
+ # define AC_ATC_MULTI_RATE_YAW_I           0.018f
 #endif
 #ifndef AC_ATC_MULTI_RATE_YAW_D
  # define AC_ATC_MULTI_RATE_YAW_D           0.0f

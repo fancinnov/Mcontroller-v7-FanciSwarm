@@ -70,9 +70,9 @@
  * (5)LC302_COMM	LC302光流模块
  * **************************************/
 #define COMM_0 MAV_COMM
-#define COMM_1 DEV_COMM
+#define COMM_1 MAV_COMM
 #define COMM_2 LC302_COMM
-#define COMM_3 DEV_COMM
+#define COMM_3 MAV_COMM
 #define COMM_4 MAV_COMM
 
 //配置LED
@@ -113,6 +113,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2023112101
+#define VERSION_FIRMWARE 2023120501
 
 #endif /* INCLUDE_CONFIG_H_ */
