@@ -58,10 +58,11 @@ static float baro_filt_hz=5;//HZ
 static float accel_ef_filt_hz=10;//HZ
 static float uwb_pos_filt_hz=5;//HZ
 static float rangefinder_filt_hz=5;//HZ
-static float opticalflow_filt_hz=2;//HZ
+static float opticalflow_filt_hz=5;//HZ
 static float flow_gyro_filt_hz=5;//HZ
 static float pitch_rad=0 , roll_rad=0 , yaw_rad=0;
 static float pitch_deg=0 , roll_deg=0 , yaw_deg=0;
+static float pitch_log=0 , roll_log=0 , yaw_log=0;
 static float cos_roll=0, cos_pitch=0, cos_yaw=0, sin_roll=0, sin_pitch=0, sin_yaw=0;
 static float yaw_map=0.0f;
 static float mav_x_target=0.0f, mav_y_target=0.0f, mav_z_target=0.0f, mav_vx_target=0.0f, mav_vy_target=0.0f, mav_vz_target=0.0f, mav_yaw_target=0.0f,
@@ -430,7 +431,7 @@ void opticalflow_update(void){
 	}else{
 		flow_alt=get_pos_z()-takeoff_alt;//cm
 	}
-	flow_alt=constrain_float(flow_alt, 0.0f, 200.0f);
+	flow_alt=constrain_float(flow_alt, 20.0f, 200.0f);
 	if(lc302_data.quality==245){
 		opticalflow_state.healthy=true;
 		get_opticalflow=true;
@@ -445,17 +446,12 @@ void opticalflow_update(void){
 	//机体坐标系->大地坐标系
 	opticalflow_state.rads.x=flow_bf_x*ahrs_cos_yaw()-flow_bf_y*ahrs_sin_yaw();
 	opticalflow_state.rads.y=flow_bf_x*ahrs_sin_yaw()+flow_bf_y*ahrs_cos_yaw();
-	flow_rad_delta=opticalflow_state.rads-flow_rad_last;
-	if(flow_rad_delta.length()>0.005){
-		opticalflow_state.rads=flow_rad_last+flow_rad_delta.normalized()*0.005;
-	}
-	flow_rad_last=opticalflow_state.rads;
 	opticalflow_state.flow_dt=(float)lc302_data.integration_timespan*0.000001f;
 	flow_vel.x=constrain_float(opticalflow_state.rads.x*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.x-30.0, opticalflow_state.vel.x+30.0);
 	flow_vel.y=constrain_float(opticalflow_state.rads.y*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.y-30.0, opticalflow_state.vel.y+30.0);
 	opticalflow_state.vel=opticalflow_state.vel_filter.apply(flow_vel);
 	opticalflow_state.pos+=opticalflow_state.vel*opticalflow_state.flow_dt;
-//	usb_printf("p:%f|%f,v:%f|%f\n",opticalflow_state.pos.x, opticalflow_state.pos.y, opticalflow_state.vel.x, opticalflow_state.vel.y);
+//	usb_printf("p:%f|%f,v:%f|%f\n",flow_vel.x, flow_vel.y, opticalflow_state.vel.x, opticalflow_state.vel.y);
 	get_gnss_location=true;
 	ned_current_vel.x=opticalflow_state.vel.x;
 	ned_current_vel.y=opticalflow_state.vel.y;
@@ -2419,6 +2415,7 @@ void ahrs_update(void){
 		//由ahrs的四元数推出旋转矩阵用于控制
 		ahrs->quaternion2.rotation_matrix(dcm_matrix);
 		attitude->set_rotation_body_to_ned(dcm_matrix);
+		attitude->get_rotation_target_to_ned().to_euler(&roll_log, &pitch_log, &yaw_log);
 		gyro_ef=dcm_matrix*gyro_filt;
 		accel_ef=dcm_matrix*accel_filt;
 		accel_ef_filt=_accel_ef_filter.apply(accel_ef);
@@ -3419,12 +3416,29 @@ void set_throttle_zero_flag(float throttle_control)
 }
 
 //channel8 < 0.1时解锁电机, channel8 > 0.9时锁定电机
+//channel6 短按解锁,长按锁定
 static uint8_t disarm_counter=0;
 void lock_motors_check(void){
 	if(!rc_channels_healthy()){
 		return;
 	}
 	set_throttle_zero_flag(get_channel_throttle());
+#if USE_CH8_LOCK
+	float ch8=get_channel_8();
+	if(ch8>0&&ch8<0.1){
+		disarm_counter=0;
+		unlock_motors();
+	}else if(ch8>0.9&&ch8<1.0&&disarm_counter<=10){
+		if(disarm_counter==10){
+			disarm_motors();
+			lock_motors();
+		}else{
+			disarm_counter++;
+		}
+	}else{
+		return;
+	}
+#else
 	float ch6=get_channel_6();
 	if(ch6>0&&ch6<0.1){
 		if (!motors->get_interlock()&&disarm_counter<50&&disarm_counter>0){
@@ -3441,6 +3455,7 @@ void lock_motors_check(void){
 			lock_motors();
 		}
 	}
+#endif
 }
 
 void zero_throttle_and_relax_ac(void)
@@ -3464,7 +3479,7 @@ void Logger_Cat_Callback(void){
 			"magx", "magy", "magz", "baro", "voltage", "current", "sat_num");
 	osDelay(2);
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s ",//LOG_EULER
-			"pitchr", "rollr", "yawr", "pitchd", "rolld", "yawd", "rtk_yawd");
+			"pitch_log", "roll_log", "yaw_log", "pitchd", "rolld", "yawd", "rtk_yawd");
 	osDelay(2);
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_ACCEL_EARTH_FRAME and VIB
 			"gyrox_t", "gyroy_t", "gyroz_t", "efx", "efy", "efz", "vib_vl", "vib_ag");
@@ -3513,7 +3528,7 @@ void Logger_Data_Callback(void){
 			get_mag_filt().x, get_mag_filt().y, get_mag_filt().z, spl06_data.baro_alt, get_batt_volt(), get_batt_current(), gps_position->satellites_used);
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_EULER
-			ahrs_pitch_rad(), ahrs_roll_rad(), ahrs_yaw_rad(), ahrs_pitch_deg(), ahrs_roll_deg(), ahrs_yaw_deg(), gps_position->heading);
+			pitch_log*RAD_TO_DEG, roll_log*RAD_TO_DEG, yaw_log*RAD_TO_DEG, ahrs_pitch_deg(), ahrs_roll_deg(), ahrs_yaw_deg(), gps_position->heading);
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_ACCEL_EARTH_FRAME and VIB
 			attitude->rate_bf_targets().x, attitude->rate_bf_targets().y, attitude->rate_bf_targets().z, get_accel_ef().x, get_accel_ef().y, get_accel_ef().z, get_vib_value(), get_vib_angle_z());

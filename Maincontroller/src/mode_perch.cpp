@@ -6,7 +6,7 @@
  */
 #include "maincontroller.h"
 
-static float target_yaw=0.0f;
+static float target_yaw=0.0f,target_yaw_rad=0.0f;
 static bool jump=true;
 static bool use_gcs=false, use_rc=false;
 static bool execute_land=false;
@@ -127,6 +127,10 @@ void mode_perch(void){
 				disarm_motors();
 				break;
 			}
+			attitude->set_yaw_target_to_current_heading();
+			attitude->reset_rate_controller_I_terms();
+			target_yaw=ahrs_yaw_deg();
+			pos_control->set_xy_target(get_pos_x(), get_pos_y());
 			takeoff_start(takeoff_alt);
 			hit_target_takeoff_alt=false;
 			// indicate we are taking off
@@ -186,19 +190,50 @@ void mode_perch(void){
 		} else {
 			motors->set_desired_spool_state(Motors::DESIRED_THROTTLE_UNLIMITED);
 		}
-//		attitude->set_yaw_target_to_current_heading();
-//		target_yaw=ahrs_yaw_deg();
-		target_yaw+=get_pilot_desired_yaw_rate(get_channel_roll_angle())*_dt;
-		attitude->input_euler_angle_roll_pitch_yaw(0.0f, target_pitch, target_yaw, true);
-		attitude->get_rate_roll_pid().reset_I();
-		pos_control->set_xy_target(get_pos_x(), get_pos_y());
-		pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		pos_control->relax_alt_hold_controllers(0.0f);   // forces throttle output to go to zero
 		pos_control->update_z_controller(get_pos_z(), get_vel_z());
 		// output pilot's throttle
-		attitude->set_throttle_out(0.2, true, param->throttle_filt.value);
+		if(ch7>=0.7&&ch7<=1.0){//姿态模式
+			pos_control->set_xy_target(get_pos_x(), get_pos_y());
+			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
+			target_yaw+=get_pilot_desired_yaw_rate(get_channel_roll_angle())*_dt;
+			attitude->input_euler_angle_roll_pitch_yaw(0.0f, target_pitch, target_yaw, true);
+		}else if(ch7>0.3&&ch7<0.7){//位置模式
+			pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, ahrs_yaw_deg(), _dt);
+			pos_control->calc_desired_velocity(_dt);
+			pos_control->shift_pos_xy_target(pos_control->get_desired_velocity().x*_dt, pos_control->get_desired_velocity().y*_dt);
+			ned_target_dis_2d.x=pos_control->get_pos_target().x-get_pos_x();
+			ned_target_dis_2d.y=pos_control->get_pos_target().y-get_pos_y();
+			float dis_2d=ned_target_dis_2d.length();
+			if(dis_2d>20.0){//距离目标点小于20cm认为到达
+				if(ned_target_dis_2d.y>=0.0f){
+					target_yaw_rad=acos(ned_target_dis_2d.x/dis_2d);
+				}else{
+					target_yaw_rad=-acos(ned_target_dis_2d.x/dis_2d);
+				}
+				target_yaw=target_yaw_rad*RAD_TO_DEG;
+				if(abs(target_yaw-ahrs_yaw_deg())<10.0f||abs(target_yaw-ahrs_yaw_deg())>170.0f){
+					pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
+					target_pitch=pos_control->get_pitch();
+				}else{
+					target_pitch=0.0f;
+				}
+				if(abs(target_yaw-ahrs_yaw_deg())>90.0f){
+					target_yaw=wrap_180(target_yaw+180, 1.0f);
+				}
+			}else{
+				target_pitch=0.0f;
+			}
+			attitude->input_euler_angle_roll_pitch_yaw(0.0f, target_pitch, target_yaw, true);
+		}else{
 
-		break;
+		}
+		attitude->set_throttle_out(0.2, true, param->throttle_filt.value);
+		attitude->rate_controller_run();
+		attitude->get_rate_roll_pid().reset_I();
+		motors->set_roll(0.0f);
+		motors->output();
+		return;
 
 	case AltHold_Flying:
 		robot_state=STATE_FLYING;
@@ -260,6 +295,7 @@ void mode_perch(void){
 					ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
 					ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
 					get_first_pos=true;
+					reach_target_point=false;
 				}
 				if(reach_target_point){
 					ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);

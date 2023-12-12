@@ -93,6 +93,9 @@
 //配置里程计
 #define USE_ODOMETRY 0 // if use odometry, set 1; if don't use odometry, set 0;
 
+//配置锁定模式
+#define USE_CH8_LOCK 0
+
 //配置flash
 #define USE_FRAM 2 //保持默认值,请勿更改
 
@@ -113,6 +116,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2023120501
+#define VERSION_FIRMWARE 2023121201
 
 #endif /* INCLUDE_CONFIG_H_ */

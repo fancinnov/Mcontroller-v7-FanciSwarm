@@ -305,6 +305,7 @@ public:
 	//   dt should be the time (in seconds) since the last call to this function
 	void set_pilot_desired_acceleration(float roll_angle, float pitch_angle, float yaw_angle, float dt);
 	void reset_predicted_accel(float vx_ef, float vy_ef);
+	const Vector2f& get_pilot_desired_acceleration() const{ return  _desired_accel;}
     /// get maximum lean angle when using loiter
     void calc_desired_velocity(float nav_dt);
     void adjust_velocity(float kP, float accel_cmss, Vector2f &desired_vel_cms, float dt);
