@@ -57,7 +57,7 @@ static float mag_filt_hz=5;//HZ
 static float baro_filt_hz=5;//HZ
 static float accel_ef_filt_hz=10;//HZ
 static float uwb_pos_filt_hz=5;//HZ
-static float rangefinder_filt_hz=5;//HZ
+static float rangefinder_filt_hz=20;//HZ
 static float opticalflow_filt_hz=5;//HZ
 static float flow_gyro_filt_hz=5;//HZ
 static float pitch_rad=0 , roll_rad=0 , yaw_rad=0;
@@ -414,7 +414,6 @@ void get_vl53lxx_data(uint16_t distance_mm){
 		}else{
 			rangefinder_state.alt_healthy=false;
 		}
-//		usb_printf("dis: %d|%f\n", distance_mm, rangefinder_state.alt_cm);
 	}else{
 		rangefinder_state.alt_healthy=false;
 	}
