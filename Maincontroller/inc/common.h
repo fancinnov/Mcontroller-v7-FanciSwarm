@@ -149,7 +149,7 @@
  # define AUTO_LAND_SPEED              25.0f         // maximum vertical velocity down in cm/s
 #endif
 #ifndef PILOT_ACCEL_Z_DEFAULT
- # define PILOT_ACCEL_Z_DEFAULT        50.0f         // vertical acceleration in cm/s/s while altitude is under pilot control
+ # define PILOT_ACCEL_Z_DEFAULT        100.0f         // vertical acceleration in cm/s/s while altitude is under pilot control
 #endif
 
 #ifndef RANGEFINDER_GAIN_DEFAULT
