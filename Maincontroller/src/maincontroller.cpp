@@ -373,6 +373,7 @@ void get_tfmini_data(uint8_t buf)
 			}else if(data_num==6&&chk_cal==buf){
 				cordist=tfmini_data[0]|(tfmini_data[1]<<8);//cm
 				strength=tfmini_data[2]|(tfmini_data[3]<<8);
+				rangefinder_state.last_update_ms=HAL_GetTick();
 				if(cordist>3&&cordist<=800){
 					Vector3f pos_offset=dcm_matrix*tfmini_offset;
 					if(!rangefinder_state.alt_healthy){
@@ -382,6 +383,7 @@ void get_tfmini_data(uint8_t buf)
 					rangefinder_state.alt_cm=rangefinder_state.alt_cm*MAX(0.707f, dcm_matrix.c.z)+pos_offset.z;
 					rangefinder_state.last_healthy_ms=HAL_GetTick();
 					get_rangefinder_data=true;
+					rangefinder_state.enabled=true;
 					if(rangefinder_state.enabled){
 						rangefinder_state.alt_healthy=true;
 					}else{
@@ -400,7 +402,8 @@ void get_tfmini_data(uint8_t buf)
 
 static Vector3f vl53lxx_offset=Vector3f(0.0f, 0.0f, 0.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
 void get_vl53lxx_data(uint16_t distance_mm){
-	if(distance_mm>10&&distance_mm<2000){//2m以下数据才可靠
+	rangefinder_state.last_update_ms=HAL_GetTick();
+	if(distance_mm>5&&distance_mm<2000){//2m以下数据才可靠
 		Vector3f pos_offset=dcm_matrix*vl53lxx_offset;
 		if(!rangefinder_state.alt_healthy){
 			rangefinder_state.alt_cm_filt.reset((float)distance_mm*0.1);//重置滤波器
@@ -409,6 +412,9 @@ void get_vl53lxx_data(uint16_t distance_mm){
 		rangefinder_state.alt_cm=rangefinder_state.alt_cm*MAX(0.707f, dcm_matrix.c.z)+pos_offset.z;
 		rangefinder_state.last_healthy_ms=HAL_GetTick();
 		get_rangefinder_data=true;
+		if(distance_mm>1000){
+			rangefinder_state.enabled=true;
+		}
 		if(rangefinder_state.enabled){
 			rangefinder_state.alt_healthy=true;
 		}else{
@@ -3194,8 +3200,9 @@ void unlock_motors(void){
 		return;
 	}
 	//TODO: add other pre-arm check
-	if (is_equal(get_pos_z(),0.0f)){
-		return;//高程计没读出数据，禁止电机启动
+	if (is_equal(get_pos_z(),0.0f)||((!rangefinder_state.enabled)&&(!get_gnss_state()))){
+		Buzzer_set_ring_type(BUZZER_ERROR);
+		return;//高程计异常，禁止电机启动
 	}
 	// enable output to motors and servos
 	set_rcout_enable(true);
@@ -3229,6 +3236,10 @@ static uint32_t land_detector_count = 0;
 static void update_land_detector(void)
 {
 	ahrs->check_vibration();
+	if(rangefinder_state.enabled&&(HAL_GetTick()-rangefinder_state.last_update_ms)>300){
+		rangefinder_state.enabled=false;
+		rangefinder_state.alt_healthy=false;
+	}
 	//******************落地前********************
 	if((get_vel_z()<0)&&(pos_control->get_desired_velocity().z<0)&&(get_vib_value()>param->vib_land.value)&&(motors->get_throttle()<motors->get_throttle_hover())&&(!motors->limit.throttle_lower)){//TODO:降落时防止弹起来
 		disarm_motors();

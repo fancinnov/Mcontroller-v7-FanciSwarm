@@ -321,13 +321,8 @@ void InitTask(void *argument)
   if(!uwb_init()){
   	  osThreadTerminate(uwbTaskHandle);
   }
-  if(mode_init()){
-	  Buzzer_set_ring_type(BUZZER_INITIALED);
-	  usb_printf("System initialized succeed!\r\n");
-  }else{
-	  Buzzer_set_ring_type(BUZZER_ERROR);
-	  usb_printf("System initialized failed!\r\n");
-  }
+  Buzzer_set_ring_type(BUZZER_INITIALED);
+  usb_printf("System initialized succeed!\r\n");
   initialed_task=true;//当初始化未完成时，只运行buzzer task
   set_motors_value();
   set_servos_value();

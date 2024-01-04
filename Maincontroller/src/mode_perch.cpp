@@ -46,7 +46,6 @@ void mode_perch(void){
 	pos_control->set_speed_xy(param->poshold_vel_max.value);
 	pos_control->set_accel_xy(param->poshold_accel_max.value);
 
-	rangefinder_state.enabled=true;
 	// get pilot desired lean angles
 	float target_roll, target_pitch;
 	get_pilot_desired_lean_angles(target_roll, target_pitch, param->angle_max.value, attitude->get_althold_lean_angle_max());

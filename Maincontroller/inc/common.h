@@ -78,8 +78,8 @@
 
 // default gains for Position Controller
 #define POSCONTROL_POS_Z_P                    1.0f    // vertical position controller P gain default 1.0
-#define POSCONTROL_VEL_Z_P                    6.0f    // vertical velocity controller P gain default 5.0
-#define POSCONTROL_ACC_Z_P                    0.6f    // vertical acceleration controller P gain default 0.5
+#define POSCONTROL_VEL_Z_P                    5.0f    // vertical velocity controller P gain default 5.0
+#define POSCONTROL_ACC_Z_P                    0.5f    // vertical acceleration controller P gain default 0.5
 #define POSCONTROL_ACC_Z_I                    0.3f     // vertical acceleration controller I gain default 0.3
 #define POSCONTROL_ACC_Z_D                    0.0f    // vertical acceleration controller D gain default 0.0
 #define POSCONTROL_ACC_Z_IMAX                 500     // vertical acceleration controller IMAX gain default
@@ -407,6 +407,7 @@ typedef struct {
 	bool alt_healthy=false; // true if we can trust the altitude from the rangefinder
 	float alt_cm=0.0f;     // tilt compensated altitude (in cm) from rangefinder
 	uint32_t last_healthy_ms=0;
+	uint32_t last_update_ms=0;
 	LowPassFilterFloat alt_cm_filt; // altitude filter
 	int8_t glitch_count;
 } Rangefinder_state;

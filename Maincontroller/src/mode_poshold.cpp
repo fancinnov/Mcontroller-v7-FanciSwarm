@@ -30,6 +30,14 @@ bool mode_poshold_init(void){
 	set_manual_throttle(false);//设置为自动油门
 	Buzzer_set_ring_type(BUZZER_MODE_SWITCH);
 	usb_printf("switch mode poshold!\n");
+	float ch7=get_channel_7();
+	if(ch7>=0.7&&ch7<=1.0){//姿态模式
+		usb_printf("enter submode attitude!\n");
+	}else if(ch7>0.3&&ch7<0.7){//位置模式
+		usb_printf("enter submode position!\n");
+	}else{//航线任务模式
+		usb_printf("enter submode mission!\n");
+	}
 	return true;
 }
 
@@ -38,7 +46,7 @@ void mode_poshold(void){
 	float takeoff_climb_rate = 0.0f;
 	float ch7=get_channel_7();
 	update_air_resistance();
-	rangefinder_state.enabled=true;
+
 	// initialize vertical speeds and acceleration
 	pos_control->set_speed_z(-param->pilot_speed_dn.value, param->pilot_speed_up.value);
 	pos_control->set_accel_z(param->pilot_accel_z.value);
