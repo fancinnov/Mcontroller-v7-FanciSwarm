@@ -457,11 +457,13 @@ void opticalflow_update(void){
 	opticalflow_state.vel=opticalflow_state.vel_filter.apply(flow_vel);
 	opticalflow_state.pos+=opticalflow_state.vel*opticalflow_state.flow_dt;
 //	usb_printf("p:%f|%f,v:%f|%f\n",flow_vel.x, flow_vel.y, opticalflow_state.vel.x, opticalflow_state.vel.y);
-	get_gnss_location=true;
-	ned_current_vel.x=opticalflow_state.vel.x;
-	ned_current_vel.y=opticalflow_state.vel.y;
-	ned_current_pos.x+=opticalflow_state.vel.x*opticalflow_state.flow_dt;
-	ned_current_pos.y+=opticalflow_state.vel.y*opticalflow_state.flow_dt;
+	if(!get_gnss_state()){
+		get_gnss_location=true;
+		ned_current_vel.x=opticalflow_state.vel.x;
+		ned_current_vel.y=opticalflow_state.vel.y;
+		ned_current_pos.x+=opticalflow_state.vel.x*opticalflow_state.flow_dt;
+		ned_current_pos.y+=opticalflow_state.vel.y*opticalflow_state.flow_dt;
+	}
 	get_odom_xy=true;
 	odom_3d.x+=opticalflow_state.vel.x*opticalflow_state.flow_dt;
 	odom_3d.y+=opticalflow_state.vel.y*opticalflow_state.flow_dt;
@@ -2561,8 +2563,8 @@ void uwb_position_update(void){
 		uwb_pos.y=constrain_float(uwb_pos.y, ned_current_pos.y-50.0f, ned_current_pos.y+50.0f);
 	}
 	uwb_pos = _uwb_pos_filter.apply(uwb_pos, (float)(currunt_uwb_ms-last_uwb_ms)/1000.0f);
-	ned_current_pos.x=uwb_pos.x;
-	ned_current_pos.y=uwb_pos.y;
+	ned_current_pos.x=ned_current_pos.x*0.5+uwb_pos.x*0.5;
+	ned_current_pos.y=ned_current_pos.y*0.5+uwb_pos.y*0.5;
 	get_gnss_location=true;
 	last_uwb_ms = currunt_uwb_ms;
 #endif
