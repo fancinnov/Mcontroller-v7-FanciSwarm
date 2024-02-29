@@ -29,6 +29,7 @@
 #include "adc.h"
 #include "spi.h"
 #include "rtc.h"
+#include "tim.h"
 #include "common/mavlink.h"
 #include "usbd_cdc_if.h"
 #include "define.h"
@@ -221,6 +222,7 @@ void comm3_callback(uint8_t data);
 void comm4_callback(uint8_t data);
 /****************c/c++ interface*******************************/
 bool get_task_initialed(void);
+uint32_t get_time_us(void);
 
 void config_callback(void);
 void comm_callback(void);
@@ -229,6 +231,7 @@ void COMM2_Callback(void);//串口2中断回调函数
 void COMM3_Callback(void);//串口3中断回调函数
 void COMM4_Callback(void);//串口4中断回调函数
 
+void TIM_1000HZ_Callback(void);//1000HZ定时器中断回调函数
 void TIM_400HZ_Callback(void);//400HZ定时器中断回调函数
 void TIM_200HZ_Callback(void);//200HZ定时器中断回调函数
 void TIM_100HZ_Callback(void);//100HZ定时器中断回调函数

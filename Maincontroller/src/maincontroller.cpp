@@ -50,6 +50,7 @@ static bool rc_channels_sendback=false;
 static bool gcs_connected=false;
 static bool offboard_connected=false;
 static bool force_autonav=false;
+static bool enable_surface_track=true;
 
 static float accel_filt_hz=10;//HZ
 static float gyro_filt_hz=20;//HZ
@@ -92,6 +93,7 @@ EKF_Baro *ekf_baro=new EKF_Baro(_dt, 0.0016, 1.0, 0.000016, 0.000016);
 EKF_Rangefinder *ekf_rangefinder=new EKF_Rangefinder(_dt, 1.0, 0.000016, 0.16);
 EKF_Odometry *ekf_odometry=new EKF_Odometry(_dt, 0.0016, 0.0016, 0.000016, 0.00016, 0.000016, 0.00016);
 EKF_GNSS *ekf_gnss=new EKF_GNSS(_dt, 0.0016, 0.0016, 0.0016, 0.0016, 0.000016, 0.000016, 0.000016, 0.000016);
+EKF_Wind *ekf_wind=new EKF_Wind(_dt, 0.0016, 0.000016, 0.000016);
 Motors *motors=new Motors(1/_dt);
 Attitude_Multi *attitude=new Attitude_Multi(*motors, gyro_filt, _dt);
 PosControl *pos_control=new PosControl(*motors, *attitude);
@@ -115,6 +117,9 @@ float ahrs_cos_pitch(void){return cos_pitch;}
 float ahrs_sin_pitch(void){return sin_pitch;}
 float ahrs_cos_yaw(void){return cos_yaw;}
 float ahrs_sin_yaw(void){return sin_yaw;}
+float log_pitch_rad(void){return pitch_log;}
+float log_roll_rad(void){return roll_log;}
+float log_yaw_rad(void){return yaw_log;}
 
 const Vector3f& get_accel_correct(void){return accel_correct;}	//修正后的三轴机体加速度
 const Vector3f& get_gyro_correct(void){return gyro_correct;}	//修正后的三轴机体角速度
@@ -403,6 +408,11 @@ void get_tfmini_data(uint8_t buf)
 static Vector3f vl53lxx_offset=Vector3f(0.0f, 0.0f, 0.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
 void get_vl53lxx_data(uint16_t distance_mm){
 	rangefinder_state.last_update_ms=HAL_GetTick();
+	if(get_gnss_state()){
+		enable_surface_track=false;
+	}else{
+		enable_surface_track=true;
+	}
 	if(distance_mm>5&&distance_mm<2000){//2m以下数据才可靠
 		Vector3f pos_offset=dcm_matrix*vl53lxx_offset;
 		if(!rangefinder_state.alt_healthy){
@@ -2587,7 +2597,9 @@ void ekf_gnss_xy(void){
 	if(!ahrs->is_initialed()||(!ahrs_healthy)||(!get_gnss_state()&&!get_opticalflow)){
 		return;
 	}
+	ekf_wind->update(get_gnss_location,get_ned_vel_x(),get_ned_vel_y());
 	ekf_gnss->update(get_gnss_location,get_ned_pos_x(),get_ned_pos_y(),get_ned_vel_x(),get_ned_vel_y());
+//	usb_printf("x:%f|y:%f\n",ekf_wind->wind_x,ekf_wind->wind_y);
 #endif
 }
 
@@ -2631,6 +2643,7 @@ float get_vel_z(void){//cm/s
 	return ekf_baro->vel_z;
 }
 
+static uint8_t low_batt_flag=0;
 void sdled_update(void){
 	if(get_soft_armed()){
 		FMU_LED3_Control(true);
@@ -2640,6 +2653,15 @@ void sdled_update(void){
 	osDelay(200);
 	if(sdlog->m_Logger_Status!=SDLog::Logger_Record){
 		FMU_LED3_Control(false);
+	}
+	if(robot_state==STATE_STOP&&get_batt_volt()>5.3f&&get_batt_volt()<param->lowbatt_land_volt.value){
+		low_batt_flag++;
+		if(low_batt_flag>=5){
+			Buzzer_set_ring_type(BUZZER_ERROR);
+			usb_printf("Warning: low power!\n");
+		}
+	}else{
+		low_batt_flag=0;
 	}
 }
 
@@ -2815,7 +2837,7 @@ void set_target_rangefinder_alt(float alt_target){
 }
 float get_surface_tracking_climb_rate(float target_rate, float current_alt_target, float dt)
 {
-	if(!rangefinder_state.alt_healthy){
+	if(!rangefinder_state.alt_healthy||!enable_surface_track){
 		  // if don't use rangefinder or rangefinder is not healthy, do not use surface tracking
 		  return target_rate;
 	}
@@ -2946,51 +2968,13 @@ void get_pilot_desired_lean_angles(float &roll_out, float &pitch_out, float angl
     // roll_out and pitch_out are returned
 }
 
-static Vector2f air_resistance_bf;
-static Vector2f pilot_actual_accel;
-void update_air_resistance(void)
+void get_wind_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max)
 {
-	const float euler_roll_angle = ahrs_roll_rad();
-	const float euler_pitch_angle = ahrs_pitch_rad();
-	const float pilot_cos_pitch_target = cosf(euler_pitch_angle);
-	pilot_actual_accel.y = GRAVITY_MSS * tanf(euler_roll_angle)/pilot_cos_pitch_target;
-	pilot_actual_accel.x = -GRAVITY_MSS * tanf(euler_pitch_angle);
-
-	air_resistance_bf.x=pilot_actual_accel.x - (accel_ef.x*cos_yaw + accel_ef.y*sin_yaw);
-	air_resistance_bf.y=pilot_actual_accel.y - (-accel_ef.x*sin_yaw + accel_ef.y*cos_yaw);
-	air_resistance_bf=_air_resistance_filter.apply(air_resistance_bf);
-}
-
-static float angle_limit=DEFAULT_ANGLE_MAX;
-static bool limit_angle=false;
-static Vector2f pilot_desire_accel;
-void get_air_resistance_lean_angles(float &roll_d, float &pitch_d, float angle_max, float gain)
-{
-	const float pilot_cos_pitch_target = cosf(radians(pitch_d));
-	pilot_desire_accel.x=-GRAVITY_MSS * tanf(radians(pitch_d));
-	pilot_desire_accel.y = GRAVITY_MSS * tanf(radians(roll_d))/pilot_cos_pitch_target;
-	if(pilot_desire_accel.length()>1.0f){
-		if(get_gnss_state()){
-			float vel_2d=sqrtf(sq(get_vel_x(),get_vel_y()))/100.0f;
-			angle_limit=angle_max*2.0/3.0/constrain_float(vel_2d*gain/3.0f, 1.0f, 2.0f);
-		}else{
-			if(air_resistance_bf.length()<pilot_actual_accel.length()&&!limit_angle){
-				angle_limit=angle_max*2.0/3.0/constrain_float(air_resistance_bf.length()*gain, 1.0f, 2.0f);
-			}else{
-				limit_angle=true;
-			}
-		}
-	}else{
-		angle_limit=angle_max;
-		limit_angle=false;
-	}
-
-    float total_in = norm(roll_d, pitch_d);
-    if (total_in > angle_limit) {
-		float ratio = angle_limit / total_in;
-		roll_d *= ratio;
-		pitch_d *= ratio;
-	}
+	float wind_pitch_deg=atanf(ekf_wind->wind_x_filt/(GRAVITY_MSS*100.0f))*RAD_TO_DEG;
+	float wind_roll_deg=-atanf(ekf_wind->wind_y_filt*cosf(pitch_log)/(GRAVITY_MSS*100.0f))*RAD_TO_DEG;
+	roll_d+=constrain_float(wind_roll_deg, -angle_max, angle_max);
+	pitch_d+=constrain_float(wind_pitch_deg, -angle_max, angle_max);
+//	usb_printf("pitch:%f|roll:%f\n",pitch_d,roll_d);
 }
 
 static bool _return=false;
@@ -3487,8 +3471,8 @@ void Logger_Cat_Callback(void){
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s ",//LOG_SENSOR
 			"t_ms", "accx", "accy", "accz", "gyrox", "gyroy", "gyroz");
 	osDelay(2);
-	sd_log_write("%8s %8s %8s %8s %8s %8s %8s ",//LOG_SENSOR
-			"magx", "magy", "magz", "baro", "voltage", "current", "sat_num");
+	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_SENSOR
+			"magx", "magy", "magz", "baro", "voltage", "current", "sat_num", "wind_x", "wind_y");
 	osDelay(2);
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s ",//LOG_EULER
 			"pitch_log", "roll_log", "yaw_log", "pitchd", "rolld", "yawd", "rtk_yawd");
@@ -3536,8 +3520,8 @@ void Logger_Data_Callback(void){
 	sd_log_write("%8ld %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_SENSOR
 			HAL_GetTick(), get_accel_filt().x, get_accel_filt().y, get_accel_filt().z, get_gyro_filt().x, get_gyro_filt().y, get_gyro_filt().z);
 	osDelay(2);
-	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8d ",//LOG_SENSOR
-			get_mag_filt().x, get_mag_filt().y, get_mag_filt().z, spl06_data.baro_alt, get_batt_volt(), get_batt_current(), gps_position->satellites_used);
+	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8d %8.3f %8.3f ",//LOG_SENSOR
+			get_mag_filt().x, get_mag_filt().y, get_mag_filt().z, spl06_data.baro_alt, get_batt_volt(), get_batt_current(), gps_position->satellites_used, ekf_wind->wind_x, ekf_wind->wind_y);
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_EULER
 			pitch_log*RAD_TO_DEG, roll_log*RAD_TO_DEG, yaw_log*RAD_TO_DEG, ahrs_pitch_deg(), ahrs_roll_deg(), ahrs_yaw_deg(), gps_position->heading);
@@ -3549,7 +3533,7 @@ void Logger_Data_Callback(void){
 			get_baroalt_filt(), pos_control->get_pos_target().z, get_pos_z(), pos_control->get_vel_target_z(), get_vel_z(), get_rangefinder_alt(), get_rangefinder_alt_target(), -get_ned_pos_z(), -get_ned_vel_z());
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_POS_XY
-			ekf_baro->get_vt(), get_mav_x_target(), get_uwb_x(), get_pos_x(), get_vel_x(), get_mav_y_target(), get_uwb_y(), get_pos_y(), get_vel_y());
+			ekf_baro->get_vt(), get_mav_x_target(), get_ned_pos_x(), get_pos_x(), get_vel_x(), get_mav_y_target(), get_ned_pos_y(), get_pos_y(), get_vel_y());
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_VEL_PID_XYZ
 			pos_control->get_vel_xy_pid().get_p().x, pos_control->get_vel_xy_pid().get_integrator().x, pos_control->get_vel_xy_pid().get_d().x,

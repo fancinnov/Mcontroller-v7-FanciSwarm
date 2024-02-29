@@ -90,6 +90,7 @@ void UART7_IRQHandler(void);
 void UART8_IRQHandler(void);
 void SPI4_IRQHandler(void);
 void OTG_FS_IRQHandler(void);
+void TIM16_IRQHandler(void);
 void TIM17_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 void EXTI3_IRQHandler(void);

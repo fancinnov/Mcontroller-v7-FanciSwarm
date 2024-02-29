@@ -148,6 +148,7 @@ int main(void)
   MX_TIM13_Init();
   MX_TIM14_Init();
   MX_RTC_Init();
+  MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
   HAL_TIM_Base_Start_IT(&htim1);
   HAL_TIM_Base_Start_IT(&htim3);
@@ -157,6 +158,7 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim8);
   HAL_TIM_Base_Start_IT(&htim13);
   HAL_TIM_Base_Start_IT(&htim14);
+  HAL_TIM_Base_Start_IT(&htim16);
   Buzzer_Set_Output_Disable();
   FATFS_UnLinkDriver(SDPath);
   /* USER CODE END 2 */
@@ -379,6 +381,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+	if (htim->Instance == TIM16) {//1000Hz
+	  TIM_1000HZ_Callback();
+	}
+
     if (htim->Instance == TIM6) {//400Hz
   	  TIM_400HZ_Callback();
     }

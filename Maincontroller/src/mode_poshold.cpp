@@ -45,7 +45,6 @@ void mode_poshold(void){
 	AltHoldModeState althold_state;
 	float takeoff_climb_rate = 0.0f;
 	float ch7=get_channel_7();
-	update_air_resistance();
 
 	// initialize vertical speeds and acceleration
 	pos_control->set_speed_z(-param->pilot_speed_dn.value, param->pilot_speed_up.value);
@@ -147,13 +146,11 @@ void mode_poshold(void){
 		// call attitude controller
 		if(!get_gnss_state()){//定位丢失，强制手动
 			target_yaw=ahrs_yaw_deg();
-			get_air_resistance_lean_angles(target_roll, target_pitch, DEFAULT_ANGLE_MAX, 1.0f);
 			attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 			pos_control->set_xy_target(get_pos_x(), get_pos_y());
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		}else{
 			if(ch7>=0.7&&ch7<=1.0){//手动模式(上挡位)
-				get_air_resistance_lean_angles(target_roll, target_pitch, DEFAULT_ANGLE_MAX, 1.0f);
 				target_yaw=ahrs_yaw_deg();
 				attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 				pos_control->set_xy_target(get_pos_x(), get_pos_y());
@@ -204,7 +201,6 @@ void mode_poshold(void){
 
 		if(!get_gnss_state()){//定位丢失，强制手动
 			target_yaw+=target_yaw_rate*_dt;
-			get_air_resistance_lean_angles(target_roll, target_pitch, DEFAULT_ANGLE_MAX, 1.0f);
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			pos_control->set_xy_target(get_pos_x(), get_pos_y());
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
@@ -267,7 +263,6 @@ void mode_poshold(void){
 			// call attitude controller
 			if(ch7>=0.7&&ch7<=1.0){//手动模式(上挡位)
 				target_yaw+=target_yaw_rate*_dt;
-				get_air_resistance_lean_angles(target_roll, target_pitch, DEFAULT_ANGLE_MAX, 1.0f);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 				pos_control->set_xy_target(get_pos_x(), get_pos_y());
 				pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());

@@ -88,7 +88,7 @@
 #define POSCONTROL_POS_XY_P                   1.0f    // horizontal position controller P gain default 1.0
 #define POSCONTROL_VEL_XY_P                   2.0f    // horizontal velocity controller P gain default 1.6
 #define POSCONTROL_VEL_XY_I                   0.4f    // horizontal velocity controller I gain default 0.4
-#define POSCONTROL_VEL_XY_D                   0.6f    // horizontal velocity controller D gain default 0.9
+#define POSCONTROL_VEL_XY_D                   0.8f    // horizontal velocity controller D gain default 0.9
 #define POSCONTROL_VEL_XY_IMAX                100.0f  // horizontal velocity controller IMAX gain default 100
 #define POSCONTROL_VEL_XY_FILT_HZ             5.0f    // horizontal velocity controller input filter default 5.0
 #define POSCONTROL_VEL_XY_FILT_D_HZ           5.0f    // horizontal velocity controller input filter for D default 5.0
@@ -241,6 +241,9 @@ void set_thr_force_decrease(bool force_decrease);
 void compass_calibrate(void);
 bool get_force_autonav(void);
 
+float log_pitch_rad(void);
+float log_roll_rad(void);
+float log_yaw_rad(void);
 float ahrs_pitch_rad(void);					//俯仰角弧度值
 float ahrs_roll_rad(void);					//滚转角弧度值
 float ahrs_yaw_rad(void);					//偏航角弧度值

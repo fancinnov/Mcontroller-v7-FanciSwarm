@@ -152,7 +152,7 @@ void mode_autonav(void){
 
 		// get take-off adjusted pilot and takeoff climb rates
 		if(ch7<0.0f||target_climb_rate>=0.0f){
-			target_climb_rate=50.0f;//给一个初速度
+			target_climb_rate=MAX(target_climb_rate, 50.0f);//给一个初速度
 		}
 
 		get_takeoff_climb_rates(target_climb_rate, takeoff_climb_rate);
@@ -235,7 +235,10 @@ void mode_autonav(void){
 				pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
 				pos_control->calc_desired_velocity(_dt);
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
-				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
+				target_roll=pos_control->get_roll();
+				target_pitch=pos_control->get_pitch();
+				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
+				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			}
 			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<30.0f)){//降落检测
 				if(target_climb_rate<-1.0f){
@@ -285,7 +288,10 @@ void mode_autonav(void){
 				}
 
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
-				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
+				target_roll=pos_control->get_roll();
+				target_pitch=pos_control->get_pitch();
+				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
+				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 				target_climb_rate=get_mav_vz_target();
 				if(get_mav_z_target()>=30.0f&&get_mav_z_target()<=200.0f&&rangefinder_state.alt_healthy){
 					pos_control->shift_alt_target(get_mav_z_target()-rangefinder_state.alt_cm);
