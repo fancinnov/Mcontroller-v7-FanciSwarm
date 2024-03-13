@@ -39,7 +39,7 @@
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_PITCH_D
-  # define AC_ATC_MULTI_RATE_PITCH_D          0.0025f
+  # define AC_ATC_MULTI_RATE_PITCH_D          0.0015f
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_ROLL_P
@@ -51,7 +51,7 @@
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_ROLL_D
-  # define AC_ATC_MULTI_RATE_ROLL_D           0.0025f
+  # define AC_ATC_MULTI_RATE_ROLL_D           0.0015f
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_RP_IMAX

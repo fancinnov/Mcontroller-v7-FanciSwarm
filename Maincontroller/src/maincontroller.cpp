@@ -350,8 +350,9 @@ typedef enum{
 static TFmini_state tfmini_state=TFMINI_IDLE;
 static uint8_t chk_cal = 0, data_num=0;
 static uint8_t tfmini_data[6];
-static Vector3f tfmini_offset=Vector3f(0.0f, 0.0f, 0.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
+static Vector3f tfmini_offset=Vector3f(0.0f, 0.0f, 7.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
 static uint16_t cordist = 0, strength=0;
+static bool use_tfmini=false;
 void get_tfmini_data(uint8_t buf)
 {
 	switch(tfmini_state){
@@ -380,6 +381,7 @@ void get_tfmini_data(uint8_t buf)
 				strength=tfmini_data[2]|(tfmini_data[3]<<8);
 				rangefinder_state.last_update_ms=HAL_GetTick();
 				if(cordist>3&&cordist<=800){
+					use_tfmini=true;
 					Vector3f pos_offset=dcm_matrix*tfmini_offset;
 					if(!rangefinder_state.alt_healthy){
 						rangefinder_state.alt_cm_filt.reset((float)cordist);//重置滤波器
@@ -395,7 +397,9 @@ void get_tfmini_data(uint8_t buf)
 						rangefinder_state.alt_healthy=false;
 					}
 				}else{
-					rangefinder_state.alt_healthy=false;
+					if(cordist<=3){
+						use_tfmini=false;
+					}
 				}
 				tfmini_state=TFMINI_IDLE;
 			}else{
@@ -407,6 +411,9 @@ void get_tfmini_data(uint8_t buf)
 
 static Vector3f vl53lxx_offset=Vector3f(0.0f, 0.0f, 0.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
 void get_vl53lxx_data(uint16_t distance_mm){
+	if(use_tfmini){
+		return;
+	}
 	rangefinder_state.last_update_ms=HAL_GetTick();
 	if(get_gnss_state()){
 		enable_surface_track=false;
@@ -430,8 +437,6 @@ void get_vl53lxx_data(uint16_t distance_mm){
 		}else{
 			rangefinder_state.alt_healthy=false;
 		}
-	}else{
-		rangefinder_state.alt_healthy=false;
 	}
 }
 
@@ -2563,6 +2568,7 @@ void uwb_position_update(void){
 	if(!uwb->get_uwb_position){
 		return;
 	}
+//	usb_printf_dir("$%d %d %d %d;", uwb->Anchordistance[0], uwb->Anchordistance[1], uwb->Anchordistance[2], uwb->Anchordistance[3]);
 	uwb->get_uwb_position=false;
 	uwb_pos.x=uwb->uwb_position.x*cosf(uwb_yaw_delta)+uwb->uwb_position.y*sinf(uwb_yaw_delta);
 	uwb_pos.y=-uwb->uwb_position.x*sinf(uwb_yaw_delta)+uwb->uwb_position.y*cosf(uwb_yaw_delta);

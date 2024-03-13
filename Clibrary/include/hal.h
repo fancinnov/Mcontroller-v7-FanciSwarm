@@ -357,6 +357,12 @@ uint8_t get_lc302_data(uint8_t buf);//解析成功返回0,未解析完返回1,�
 bool vl53lxx_init(void);
 void vl53lxx_update(void);
 
+//超声波驱动
+void HC_SR04_init(void);
+void HC_SR04_trig(void);
+void HC_SR04_echo(void);
+float get_HC_SR04_distance(void);
+
 /***fram驱动函数为底层驱动，它的上层函数在Cpplibrary中的flash.h***/
 void FRAM_Init(void);//FRAM 初始化
 uint8_t FRAM_Get_Status(void);//获取fram状态
