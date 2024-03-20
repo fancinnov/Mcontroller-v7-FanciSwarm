@@ -23,12 +23,13 @@ public:
 	float wind_x=0.0f, wind_y=0.0f, vx_body=0.0f, vy_body=0.0f;
 	float wind_x_filt=0.0f, wind_y_filt=0.0f;
 private:
+	float accel_x_filt=0.0f, accel_y_filt=0.0f;
 	float euler_roll_angle=0.0f,euler_pitch_angle=0.0f,pilot_cos_pitch_target=0.0f;
 	float ax_body=0.0f,ay_body=0.0f,pilot_actual_accel_x=0.0f,pilot_actual_accel_y=0.0f;
 	float Qt=1.0f; //观测数据的方差
 	bool initialed=false;
 	float _filt_alpha(float dt, float filt_hz);
-	float _alpha=0;
+	float _alpha=0, _alpha_accel=0;
 	float delta_x_wind=0;
 	float T_wind=0.0025; //2.5ms
 	float G_wind[2*2]={ 1, T_wind,
@@ -59,6 +60,7 @@ private:
 	float* error2_wind_y;
 	float* Kal_wind_y;
 	float filt_hz_wind=20.0f;
+	float filt_hz_accel=5.0f;
 };
 
 #endif /* INCLUDE_EKF_EKF_WIND_H_ */

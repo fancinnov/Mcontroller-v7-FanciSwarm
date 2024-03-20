@@ -39,7 +39,7 @@
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_PITCH_D
-  # define AC_ATC_MULTI_RATE_PITCH_D          0.0015f
+  # define AC_ATC_MULTI_RATE_PITCH_D          0.002f
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_ROLL_P
@@ -51,7 +51,7 @@
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_ROLL_D
-  # define AC_ATC_MULTI_RATE_ROLL_D           0.0015f
+  # define AC_ATC_MULTI_RATE_ROLL_D           0.002f
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_RP_IMAX
@@ -207,6 +207,7 @@
 #define MISSION_VEL_MAX 100.0f		//1m/s
 #define MISSION_ACCEL_MAX 100.0f	//1m/ss
 #define ALT_RETURN	100.0f			//1m
+#define AUTO_TAKEOFF_SPEED 50.0f	//50cm/s
 #define VOLTAGE_GAIN 1.0f
 #define CURRENT_GAIN 1.0f
 #define UWB_YAW_DELTA_DEG 0.0f
@@ -420,7 +421,6 @@ typedef struct {
 	bool healthy;
 	float flow_dt;
 	uint32_t last_healthy_ms=0;
-	LowPassFilterVector2f vel_filter;
 	Vector2f rads;
 	Vector2f vel;
 	Vector2f pos;
@@ -884,6 +884,12 @@ typedef struct{
 		dataflash_type type=VECTOR3F;
 		Vector3f value={UWB_POS4_X, UWB_POS4_Y, UWB_POS4_Z};
 	}uwb_anchor04_pos;
+
+	struct auto_takeoff_speed{
+		uint16_t num=52;
+		dataflash_type type=FLOAT;
+		float value=AUTO_TAKEOFF_SPEED;
+	}auto_takeoff_speed;
 
 	/* *************************************************
 	 * ****************Dev code begin*******************/

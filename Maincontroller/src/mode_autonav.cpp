@@ -152,7 +152,7 @@ void mode_autonav(void){
 
 		// get take-off adjusted pilot and takeoff climb rates
 		if(ch7<0.0f||target_climb_rate>-20.0f){
-			target_climb_rate=MAX(target_climb_rate, 50.0f);//给一个初速度
+			target_climb_rate=MAX(target_climb_rate, param->auto_takeoff_speed.value);//给一个初速度,大飞机30,小飞机50
 		}
 		get_takeoff_climb_rates(target_climb_rate, takeoff_climb_rate);
 

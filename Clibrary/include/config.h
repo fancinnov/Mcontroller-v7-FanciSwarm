@@ -70,9 +70,9 @@
  * (5)LC302_COMM	LC302光流模块
  * **************************************/
 #define COMM_0 MAV_COMM
-#define COMM_1 GPS_COMM
+#define COMM_1 MAV_COMM
 #define COMM_2 LC302_COMM
-#define COMM_3 MAV_COMM
+#define COMM_3 TFMINI_COMM
 #define COMM_4 MAV_COMM
 
 //配置LED
@@ -96,6 +96,9 @@
 //配置锁定模式
 #define USE_CH8_LOCK 0
 
+//是否启动抗风
+#define USE_WIND 1
+
 //配置flash
 #define USE_FRAM 2 //保持默认值,请勿更改
 
@@ -116,6 +119,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2024031301
+#define VERSION_FIRMWARE 2024032001
 
 #endif /* INCLUDE_CONFIG_H_ */
