@@ -444,7 +444,7 @@ void get_vl53lxx_data(uint16_t distance_mm){
 
 static float flow_alt, flow_bf_x, flow_bf_y;
 static Vector3f flow_gyro_offset;
-static Vector2f flow_vel, flow_vel_delta, flow_vel_sample[10];
+static Vector2f flow_vel, flow_vel_delta, flow_vel_sample[5];
 static float flow_gain_x=-0.025, flow_gain_y=0.025, flow_gain_z=0.0025;
 static uint8_t flow_sample_flag=0;
 void opticalflow_update(void){
@@ -474,34 +474,33 @@ void opticalflow_update(void){
 	flow_vel_delta.y=MAX(get_accel_ef().y*100*0.3,30.0f);
 	flow_vel.x=constrain_float(opticalflow_state.rads.x*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.x-flow_vel_delta.x, opticalflow_state.vel.x+flow_vel_delta.x);
 	flow_vel.y=constrain_float(opticalflow_state.rads.y*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.y-flow_vel_delta.y, opticalflow_state.vel.y+flow_vel_delta.y);
-
-	if(flow_sample_flag<10){
-		flow_vel_sample[flow_sample_flag]=flow_vel;
-	}else{
-		flow_vel_sample[flow_sample_flag%10]=flow_vel;
-		flow_vel.zero();
-		for(uint8_t i=0;i<10;i++){
-			flow_vel+=flow_vel_sample[i];
-		}
-		flow_vel*=0.1f;
-	}
-//	usb_printf_dir("$%d %d;",(int16_t)flow_vel.y, (int16_t)flow_vel_sample[flow_sample_flag%10].y);
-	flow_sample_flag++;
-	if(flow_sample_flag==20){
-		flow_sample_flag=10;
-	}
 	opticalflow_state.vel=flow_vel;
 	opticalflow_state.pos+=opticalflow_state.vel*opticalflow_state.flow_dt;
+	if(flow_sample_flag<5){
+		flow_vel_sample[flow_sample_flag]=flow_vel;
+	}else{
+		flow_vel_sample[flow_sample_flag%5]=flow_vel;
+		flow_vel.zero();
+		for(uint8_t i=0;i<5;i++){
+			flow_vel+=flow_vel_sample[i];
+		}
+		flow_vel*=0.2f;
+	}
+	flow_sample_flag++;
+	if(flow_sample_flag==10){
+		flow_sample_flag=5;
+	}
+//	usb_printf_dir("$%d %d;",(int16_t)flow_vel.y, (int16_t)flow_vel_sample[flow_sample_flag%10].y);
 	if(!get_gnss_state()){
 		get_gnss_location=true;
-		ned_current_vel.x=opticalflow_state.vel.x;
-		ned_current_vel.y=opticalflow_state.vel.y;
-		ned_current_pos.x+=opticalflow_state.vel.x*opticalflow_state.flow_dt;
-		ned_current_pos.y+=opticalflow_state.vel.y*opticalflow_state.flow_dt;
+		ned_current_vel.x=flow_vel.x;
+		ned_current_vel.y=flow_vel.y;
+		ned_current_pos.x+=flow_vel.x*opticalflow_state.flow_dt;
+		ned_current_pos.y+=flow_vel.y*opticalflow_state.flow_dt;
 	}
 	get_odom_xy=true;
-	odom_3d.x+=opticalflow_state.vel.x*opticalflow_state.flow_dt;
-	odom_3d.y+=opticalflow_state.vel.y*opticalflow_state.flow_dt;
+	odom_3d.x+=flow_vel.x*opticalflow_state.flow_dt;
+	odom_3d.y+=flow_vel.y*opticalflow_state.flow_dt;
 #endif
 }
 
@@ -519,7 +518,7 @@ static mavlink_attitude_t attitude_mav;
 static mavlink_local_position_ned_cov_t local_position_ned_cov;
 static mavlink_set_position_target_local_ned_t set_position_target_local_ned;
 static Vector3f lidar_offset=Vector3f(0.0f,0.0f, 0.0f);//cm
-static uint8_t gcs_channel=255;
+static uint8_t gcs_channel=255,offboard_channel=255;
 static uint16_t gnss_point_statis=0;
 static uint8_t gnss_reset_notify=0;
 static float motor_test_type=0.0f,motor_test_throttle=0.0f,motor_test_timeout=0.0f,motor_test_num=0.0f;
@@ -566,6 +565,12 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				}
 				if(chan==MAVLINK_COMM_0){
 					offboard_connected=true;
+					offboard_channel=MAVLINK_COMM_0;
+				}else{
+					if(heartbeat.type==MAV_TYPE_ONBOARD_CONTROLLER){//机载电脑
+						offboard_connected=true;
+						offboard_channel=chan;
+					}
 				}
 				if(msg_received->sysid==254){
 					force_autonav=true;
@@ -1489,31 +1494,31 @@ void send_mavlink_heartbeat_data(void){
 
 #if COMM_0==MAV_COMM
 		mavlink_send_buffer(MAVLINK_COMM_0, &msg_heartbeat);
-		if(gcs_channel==MAVLINK_COMM_0){
+		if(gcs_channel==MAVLINK_COMM_0||offboard_channel==MAVLINK_COMM_0){
 			mavlink_send_buffer(MAVLINK_COMM_0, &msg_battery_status);
 		}
 #endif
 #if COMM_1==MAV_COMM
 		mavlink_send_buffer(MAVLINK_COMM_1, &msg_heartbeat);
-		if(gcs_channel==MAVLINK_COMM_1){
+		if(gcs_channel==MAVLINK_COMM_1||offboard_channel==MAVLINK_COMM_1){
 			mavlink_send_buffer(MAVLINK_COMM_1, &msg_battery_status);
 		}
 #endif
 #if COMM_2==MAV_COMM
 		mavlink_send_buffer(MAVLINK_COMM_2, &msg_heartbeat);
-		if(gcs_channel==MAVLINK_COMM_2){
+		if(gcs_channel==MAVLINK_COMM_2||offboard_channel==MAVLINK_COMM_2){
 			mavlink_send_buffer(MAVLINK_COMM_2, &msg_battery_status);
 		}
 #endif
 #if COMM_3==MAV_COMM
 		mavlink_send_buffer(MAVLINK_COMM_3, &msg_heartbeat);
-		if(gcs_channel==MAVLINK_COMM_3){
+		if(gcs_channel==MAVLINK_COMM_3||offboard_channel==MAVLINK_COMM_3){
 			mavlink_send_buffer(MAVLINK_COMM_3, &msg_battery_status);
 		}
 #endif
 #if COMM_4==MAV_COMM
 		mavlink_send_buffer(MAVLINK_COMM_4, &msg_heartbeat);
-		if(gcs_channel==MAVLINK_COMM_4){
+		if(gcs_channel==MAVLINK_COMM_4||offboard_channel==MAVLINK_COMM_4){
 			mavlink_send_buffer(MAVLINK_COMM_4, &msg_battery_status);
 		}
 #endif
@@ -1565,19 +1570,26 @@ static uint8_t accel_cali_num=0;
 static uint32_t takeoff_time=0;
 void send_mavlink_data(mavlink_channel_t chan)
 {
-	if((HAL_GetTick()-time_last_heartbeat[(uint8_t)chan])>5000&&(HeartBeatFlags&(EVENTBIT_HEARTBEAT_COMM_0<<(uint8_t)chan))){
+	uint32_t time=HAL_GetTick();
+	if((time-time_last_heartbeat[(uint8_t)chan])>5000&&(HeartBeatFlags&(EVENTBIT_HEARTBEAT_COMM_0<<(uint8_t)chan))){
 		HeartBeatFlags&=(0xFF^(EVENTBIT_HEARTBEAT_COMM_0<<(uint8_t)chan));
 		if(chan==gcs_channel){
 			gcs_connected=false;
 			reset_rc_channels();
 			set_rc_channels_override(false);
+			gcs_channel=255;
 		}
 		if(chan==MAVLINK_COMM_0){
 			offboard_connected=false;
+			offboard_channel=255;
+		}else{
+			if(heartbeat.type==MAV_TYPE_ONBOARD_CONTROLLER){//机载电脑
+				offboard_connected=false;
+				offboard_channel=255;
+			}
 		}
 		return;
 	}
-	uint32_t time=HAL_GetTick();
 
 	//姿态+位置
 	global_attitude_position.pitch=ahrs_pitch_rad();
@@ -3610,9 +3622,10 @@ void Logger_Update(void){
 	sdlog->Logger_Update();
 }
 
-static mavlink_message_t msg_scaled_imu;
+static mavlink_message_t msg_scaled_imu, msg_attitude_quaternion;
 static mavlink_scaled_imu_t scaled_imu;
-void usbsend_callback(void){
+static mavlink_attitude_quaternion_t attitude_quaternion;
+void comm_send_callback(void){
 	if(offboard_connected){
 		scaled_imu.time_boot_ms=HAL_GetTick();
 		scaled_imu.xacc=(int16_t)(get_accel_filt().x*1000);
@@ -3622,8 +3635,20 @@ void usbsend_callback(void){
 		scaled_imu.ygyro=(int16_t)(get_gyro_filt().y*1000);
 		scaled_imu.zgyro=(int16_t)(get_gyro_filt().z*1000);
 		mavlink_msg_scaled_imu_encode(mavlink_system.sysid, mavlink_system.compid, &msg_scaled_imu, &scaled_imu);
-		mavlink_send_buffer(MAVLINK_COMM_0, &msg_scaled_imu);
+		mavlink_send_buffer((mavlink_channel_t)offboard_channel, &msg_scaled_imu);
+
+		attitude_quaternion.time_boot_ms=HAL_GetTick();
+		attitude_quaternion.q1=ahrs->quaternion2.q1;
+		attitude_quaternion.q2=ahrs->quaternion2.q2;
+		attitude_quaternion.q3=ahrs->quaternion2.q3;
+		attitude_quaternion.q4=ahrs->quaternion2.q4;
+		attitude_quaternion.rollspeed=get_gyro_filt().x;
+		attitude_quaternion.pitchspeed=get_gyro_filt().y;
+		attitude_quaternion.yawspeed=get_gyro_filt().z;
+		mavlink_msg_attitude_quaternion_encode(mavlink_system.sysid, mavlink_system.compid, &msg_attitude_quaternion, &attitude_quaternion);
+		mavlink_send_buffer((mavlink_channel_t)offboard_channel, &msg_attitude_quaternion);
 	}
+	flush_serial_data((mavlink_channel_t)offboard_channel);
 	flush_usb_data();
 }
 

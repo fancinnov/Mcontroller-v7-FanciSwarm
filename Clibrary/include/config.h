@@ -72,7 +72,7 @@
 #define COMM_0 MAV_COMM
 #define COMM_1 MAV_COMM
 #define COMM_2 LC302_COMM
-#define COMM_3 TFMINI_COMM
+#define COMM_3 MAV_COMM
 #define COMM_4 MAV_COMM
 
 //配置LED
@@ -119,6 +119,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2024032001
+#define VERSION_FIRMWARE 2024040201
 
 #endif /* INCLUDE_CONFIG_H_ */

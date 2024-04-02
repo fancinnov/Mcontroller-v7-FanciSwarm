@@ -213,7 +213,7 @@ void arm_motors_check(void);
 bool mode_init(void);
 void mode_update(void);
 void sdled_update(void);
-void usbsend_callback(void);
+void comm_send_callback(void);
 void debug(void);
 void comm0_callback(uint8_t data);
 void comm1_callback(uint8_t data);
@@ -529,6 +529,7 @@ HAL_StatusTypeDef s4_send_buf_delayms(uint8_t* buf, uint16_t size, uint32_t time
   */
 void mavlink_send_buffer(mavlink_channel_t chan, mavlink_message_t *msg);
 void flush_usb_data(void);
+void flush_serial_data(mavlink_channel_t chan);
 void comm_send_data(void);//把缓冲区中的数据以非阻塞方式从MAVLINK_COMM_0~MAVLINK_COMM_4中发送出去,此函数为系统函数,不需要用户调用.
 #define EVENTBIT_HEARTBEAT_COMM_0 (1<<0) //usb
 #define EVENTBIT_HEARTBEAT_COMM_1 (1<<1) //串口1

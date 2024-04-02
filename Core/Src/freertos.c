@@ -379,7 +379,7 @@ void Loop200hzTask(void *argument)
   for(;;)
   {
 	  osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
-	  usbsend_callback();
+	  comm_send_callback();
 	  adc_update();
   }
   /* USER CODE END Loop200hzTask */
