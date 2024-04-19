@@ -156,7 +156,7 @@ void mode_perch(void){
 
 		// get take-off adjusted pilot and takeoff climb rates
 		if(ch7<0.0f||target_climb_rate>=0.0f){
-			target_climb_rate=50.0f;//给一个初速度
+			target_climb_rate=MAX(target_climb_rate, param->auto_takeoff_speed.value);//给一个初速度,大飞机30,小飞机50
 		}
 
 		get_takeoff_climb_rates(target_climb_rate, takeoff_climb_rate);
@@ -168,11 +168,18 @@ void mode_perch(void){
 			pos_control->set_xy_target(get_pos_x(), get_pos_y());
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		}else{//位置模式
-			pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
-			pos_control->calc_desired_velocity(_dt);
-			pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
-			target_yaw=ahrs_yaw_deg();
-			attitude->input_euler_angle_roll_pitch_euler_rate_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw_rate);
+			if(get_gyro_filt().length()>M_PI||!rangefinder_state.alt_healthy){
+				pos_control->set_xy_target(get_pos_x(), get_pos_y());
+				pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
+				target_yaw=ahrs_yaw_deg();
+				attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
+			}else{
+				pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
+				pos_control->calc_desired_velocity(_dt);
+				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
+				target_yaw=ahrs_yaw_deg();
+				attitude->input_euler_angle_roll_pitch_euler_rate_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw_rate);
+			}
 		}
 		// call position controller
 		pos_control->set_alt_target_from_climb_rate_ff(target_climb_rate, _dt, false);
@@ -258,7 +265,7 @@ void mode_perch(void){
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		}else if(ch7>0.3&&ch7<0.7){//位置模式
 			target_yaw+=target_yaw_rate*_dt;
-			if(get_gyro_filt().length()>M_PI){
+			if(get_gyro_filt().length()>M_PI||!rangefinder_state.alt_healthy){
 				pos_control->set_xy_target(get_pos_x(), get_pos_y());
 				pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
@@ -266,7 +273,10 @@ void mode_perch(void){
 				pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
 				pos_control->calc_desired_velocity(_dt);
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
-				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
+				target_roll=pos_control->get_roll();
+				target_pitch=pos_control->get_pitch();
+				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
+				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			}
 			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<30.0f)){//降落检测
 				if(target_climb_rate<-1.0f){
@@ -287,6 +297,7 @@ void mode_perch(void){
 				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
 			}else{
 				target_yaw_rate=get_mav_yaw_rate_target();
+				target_yaw=(get_mav_yaw_target()-yaw_delta)*RAD_TO_DEG;
 				target_yaw+=target_yaw_rate*_dt;
 				pos_control->set_speed_xy(param->mission_vel_max.value);
 				pos_control->set_accel_xy(param->mission_accel_max.value);
@@ -320,8 +331,9 @@ void mode_perch(void){
 				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
 				target_climb_rate=get_mav_vz_target();
 				if(get_mav_z_target()>=30.0f&&get_mav_z_target()<=200.0f&&rangefinder_state.alt_healthy){
-					pos_control->shift_alt_target(get_mav_z_target()-rangefinder_state.alt_cm);
-					set_target_rangefinder_alt(get_mav_z_target());
+					if(robot_state_desired!=STATE_LANDED&&!execute_land){
+						set_target_rangefinder_alt(get_mav_z_target());
+					}
 				}
 			}
 		}

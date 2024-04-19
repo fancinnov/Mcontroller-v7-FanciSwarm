@@ -302,10 +302,10 @@ void InitTask(void *argument)
   /* USER CODE BEGIN InitTask */
   reset_usb();
   config_comm();
-  set_s1_baudrate(115200);
-  set_s2_baudrate(19200);
-  set_s3_baudrate(115200);
-  set_s4_baudrate(115200);
+  set_s1_baudrate(COMM_1_BANDRATE);
+  set_s2_baudrate(COMM_2_BANDRATE);
+  set_s3_baudrate(COMM_3_BANDRATE);
+  set_s4_baudrate(COMM_4_BANDRATE);
   usb_printf("\r\nSystem: Mcontroller-V%ld-%ld initializing ...\r\n",VERSION_HARDWARE, VERSION_FIRMWARE);
   adc_init();
   FRAM_Init();

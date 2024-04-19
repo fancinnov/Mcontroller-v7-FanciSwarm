@@ -173,7 +173,6 @@ enum{
 void uwb_range_tx(void){
 	switch(uwb_state){
 	case idle:
-		osDelay(1000);
 		/* Set expected response's delay and timeout.
 		 * As this example only handles one incoming frame with always the same delay and timeout, those values can be set here once for all. */
 		dwt_setrxaftertxdelay(POLL_TX_TO_RESP_RX_DLY_UUS);

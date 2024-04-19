@@ -476,6 +476,11 @@ void s1_printf_dir(const char* s, ...);
 void s2_printf_dir(const char* s, ...);
 void s3_printf_dir(const char* s, ...);
 void s4_printf_dir(const char* s, ...);
+
+HAL_UART_StateTypeDef s1_state(void);//获取串口1状态
+HAL_UART_StateTypeDef s2_state(void);//获取串口2状态
+HAL_UART_StateTypeDef s3_state(void);//获取串口3状态
+HAL_UART_StateTypeDef s4_state(void);//获取串口4状态
 /**
   * @brief  采用中断方式从串口1发送数据
   * @param  buf: 待发送数据的数组起始地址

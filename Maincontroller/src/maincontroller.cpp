@@ -51,6 +51,7 @@ static bool gcs_connected=false;
 static bool offboard_connected=false;
 static bool force_autonav=false;
 static bool enable_surface_track=true;
+static bool use_rangefinder=true;
 
 static float accel_filt_hz=10;//HZ
 static float gyro_filt_hz=20;//HZ
@@ -59,7 +60,6 @@ static float baro_filt_hz=5;//HZ
 static float accel_ef_filt_hz=10;//HZ
 static float uwb_pos_filt_hz=5;//HZ
 static float rangefinder_filt_hz=20;//HZ
-static float opticalflow_filt_hz=5;//HZ
 static float flow_gyro_filt_hz=5;//HZ
 static float pitch_rad=0 , roll_rad=0 , yaw_rad=0;
 static float pitch_deg=0 , roll_deg=0 , yaw_deg=0;
@@ -84,7 +84,6 @@ static Matrix3f dcm_matrix, dcm_matrix_correct;										//旋转矩阵
 static LowPassFilter2pVector3f	_accel_filter, _gyro_filter, _accel_ef_filter;
 static LowPassFilterFloat _baro_alt_filter;
 static LowPassFilterVector3f _mag_filter, _uwb_pos_filter, _flow_gyro_filter;
-static LowPassFilterVector2f _air_resistance_filter;
 
 parameter *param=new parameter();
 ap_t *ap=new ap_t();
@@ -354,9 +353,17 @@ static uint8_t chk_cal = 0, data_num=0;
 static uint8_t tfmini_data[6];
 static Vector3f tfmini_offset=Vector3f(0.0f, 0.0f, 7.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
 static uint16_t cordist = 0, strength=0;
-static bool use_tfmini=false;
+static bool use_tfmini=false, force_vl53lxx=false;
 void get_tfmini_data(uint8_t buf)
 {
+	if(!use_rangefinder){
+		rangefinder_state.enabled=false;
+		rangefinder_state.alt_healthy=false;
+		return;
+	}
+	if(force_vl53lxx){
+		return;
+	}
 	switch(tfmini_state){
 		case TFMINI_IDLE:
 			if(TFMINT_DATA_HEAD==buf){
@@ -402,6 +409,7 @@ void get_tfmini_data(uint8_t buf)
 					if(cordist<=3){
 						use_tfmini=false;
 					}
+					rangefinder_state.alt_healthy=false;
 				}
 				tfmini_state=TFMINI_IDLE;
 			}else{
@@ -413,8 +421,18 @@ void get_tfmini_data(uint8_t buf)
 
 static Vector3f vl53lxx_offset=Vector3f(0.0f, 0.0f, 0.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
 void get_vl53lxx_data(uint16_t distance_mm){
-	if(use_tfmini){
+	if(!use_rangefinder){
+		rangefinder_state.enabled=false;
+		rangefinder_state.alt_healthy=false;
 		return;
+	}
+	if(distance_mm>5&&distance_mm<100){
+		force_vl53lxx=true;
+	}else{
+		force_vl53lxx=false;
+		if(use_tfmini){
+			return;
+		}
 	}
 	rangefinder_state.last_update_ms=HAL_GetTick();
 	if(get_gnss_state()){
@@ -439,6 +457,8 @@ void get_vl53lxx_data(uint16_t distance_mm){
 		}else{
 			rangefinder_state.alt_healthy=false;
 		}
+	}else{
+		rangefinder_state.alt_healthy=false;
 	}
 }
 
@@ -2156,7 +2176,6 @@ void pos_init(void){
 	sdlog->Logger_Read_Gnss();
 	rangefinder_state.alt_cm_filt.set_cutoff_frequency(rangefinder_filt_hz);//tfmini默认频率100hz
 	_uwb_pos_filter.set_cutoff_frequency(uwb_pos_filt_hz);
-	_air_resistance_filter.set_cutoff_frequency(400, 1);
 }
 
 bool uwb_init(void){
@@ -3241,7 +3260,7 @@ void unlock_motors(void){
 		return;
 	}
 	//TODO: add other pre-arm check
-	if (is_equal(get_pos_z(),0.0f)||((!rangefinder_state.enabled)&&(!get_gnss_state()))){
+	if (is_equal(get_pos_z(),0.0f)||((use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()))){
 		Buzzer_set_ring_type(BUZZER_ERROR);
 		return;//高程计异常，禁止电机启动
 	}
@@ -3379,6 +3398,12 @@ static void update_throttle_thr_mix()
 
 // throttle_loop - should be run at 100 hz
 void throttle_loop(void){
+	float ch5=get_channel_5();
+	if(ch5>=0.7&&ch5<=1.0){
+		use_rangefinder=false;
+	}else{
+		use_rangefinder=true;
+	}
 	// update estimated throttle required to hover
 	update_throttle_hover();
     // update throttle_low_comp value (controls priority of throttle vs attitude control)

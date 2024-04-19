@@ -72,8 +72,14 @@
 #define COMM_0 MAV_COMM
 #define COMM_1 MAV_COMM
 #define COMM_2 LC302_COMM
-#define COMM_3 MAV_COMM
+#define COMM_3 TFMINI_COMM
 #define COMM_4 MAV_COMM
+
+//串口波特率
+#define COMM_1_BANDRATE 115200
+#define COMM_2_BANDRATE 19200
+#define COMM_3_BANDRATE 115200
+#define COMM_4_BANDRATE 115200
 
 //配置LED
 #define FMU_LED_CONTROLL_ENABLE 1 // if use system default led control, set 1; if you want to control led by yourself, set 0;
@@ -96,7 +102,7 @@
 //配置锁定模式
 #define USE_CH8_LOCK 0
 
-//是否启动抗风
+//是否启用抗风
 #define USE_WIND 1
 
 //配置flash
@@ -119,6 +125,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2024040201
+#define VERSION_FIRMWARE 2024041901
 
 #endif /* INCLUDE_CONFIG_H_ */
