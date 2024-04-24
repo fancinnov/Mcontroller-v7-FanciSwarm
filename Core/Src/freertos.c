@@ -542,7 +542,7 @@ void GnssTask(void *argument)
 	while(!initialed_task){
 		osDelay(1000);
 	}
-#if (!USE_GNSS)||USE_UWB
+#if !USE_GNSS
 	osThreadTerminate(gnssTaskHandle);
 #endif
 	Gnss_Init(UM482); // GPS_Init() task will block 10s

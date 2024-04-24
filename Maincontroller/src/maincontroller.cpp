@@ -52,6 +52,7 @@ static bool offboard_connected=false;
 static bool force_autonav=false;
 static bool enable_surface_track=true;
 static bool use_rangefinder=true;
+static bool use_uwb=false;
 
 static float accel_filt_hz=10;//HZ
 static float gyro_filt_hz=20;//HZ
@@ -1615,28 +1616,28 @@ void send_mavlink_data(mavlink_channel_t chan)
 	global_attitude_position.pitch=ahrs_pitch_rad();
 	global_attitude_position.roll=ahrs_roll_rad();
 	global_attitude_position.yaw=ahrs_yaw_rad();
-#if USE_UWB
-	global_attitude_position.x=get_pos_x()*cosf(uwb_yaw_delta)-get_pos_y()*sinf(uwb_yaw_delta);
-	global_attitude_position.y=get_pos_x()*sinf(uwb_yaw_delta)+get_pos_y()*cosf(uwb_yaw_delta);
-#else
-	global_attitude_position.x=get_pos_x();
-	global_attitude_position.y=get_pos_y();
-#endif
+	if(use_uwb){
+		global_attitude_position.x=get_pos_x()*cosf(uwb_yaw_delta)-get_pos_y()*sinf(uwb_yaw_delta);
+		global_attitude_position.y=get_pos_x()*sinf(uwb_yaw_delta)+get_pos_y()*cosf(uwb_yaw_delta);
+	}else{
+		global_attitude_position.x=get_pos_x();
+		global_attitude_position.y=get_pos_y();
+	}
 	global_attitude_position.z=get_pos_z();
 	global_attitude_position.usec=time;
 	mavlink_msg_global_vision_position_estimate_encode(mavlink_system.sysid, mavlink_system.compid, &msg_global_attitude_position, &global_attitude_position);
 	mavlink_send_buffer(chan, &msg_global_attitude_position);
 
 	//经纬高+速度
-#if USE_UWB
-	global_position_int.lat=(int32_t)(uwb_pos.x*cosf(uwb_yaw_delta)-uwb_pos.y*sinf(uwb_yaw_delta));//cm
-	global_position_int.lon=(int32_t)(uwb_pos.x*sinf(uwb_yaw_delta)+uwb_pos.y*cosf(uwb_yaw_delta));//cm
-	global_position_int.alt=(int32_t)uwb_pos.z;//cm
-#elif USE_GNSS
-	global_position_int.lat=gps_position->lat;//deg*1e7
-	global_position_int.lon=gps_position->lon;//deg*1e7
-	global_position_int.alt=gps_position->alt;//mm
-#endif
+	if(use_uwb){
+		global_position_int.lat=(int32_t)(uwb_pos.x*cosf(uwb_yaw_delta)-uwb_pos.y*sinf(uwb_yaw_delta));//cm
+		global_position_int.lon=(int32_t)(uwb_pos.x*sinf(uwb_yaw_delta)+uwb_pos.y*cosf(uwb_yaw_delta));//cm
+		global_position_int.alt=(int32_t)uwb_pos.z;//cm
+	}else{
+		global_position_int.lat=gps_position->lat;//deg*1e7
+		global_position_int.lon=gps_position->lon;//deg*1e7
+		global_position_int.alt=gps_position->alt;//mm
+	}
 	global_position_int.relative_alt=(int32_t)(rangefinder_state.alt_cm*10);//对地高度 mm
 	global_position_int.hdg=(uint16_t)gps_position->satellites_used|((uint16_t)gps_position->heading_status<<8)|((uint16_t)gps_position->fix_type<<12);//卫星数+定向状态+定位状态
 	global_position_int.vx=get_vel_x(); //速度cm/s
@@ -2586,6 +2587,10 @@ static float yaw_gnss_offset=0.0f;
 static uint8_t yaw_gnss_flag=0;
 void gnss_update(void){
 	if(get_gnss_state()){
+		if((HAL_GetTick()-get_gnss_update_ms())>1000){
+			set_gnss_state(false);
+			return;
+		}
 		if(!initial_gnss){
 			gnss_origin_pos.lat=gps_position->lat;//纬度:deg*1e-7
 			gnss_origin_pos.lng=gps_position->lon;//经度:deg*1e-7
@@ -2649,6 +2654,7 @@ void uwb_position_update(void){
 	ned_current_pos.y=ned_current_pos.y*0.5+uwb_pos.y*0.5;
 	get_gnss_location=true;
 	last_uwb_ms = currunt_uwb_ms;
+	use_uwb=true;
 #endif
 }
 
@@ -3401,6 +3407,7 @@ void throttle_loop(void){
 	float ch5=get_channel_5();
 	if(ch5>=0.7&&ch5<=1.0){
 		use_rangefinder=false;
+		set_gnss_state(false);
 	}else{
 		use_rangefinder=true;
 	}
@@ -3504,7 +3511,7 @@ void lock_motors_check(void){
 	if(ch8>0&&ch8<0.1){
 		disarm_counter=0;
 		unlock_motors();
-	}else if(ch8>0.9&&ch8<1.0&&disarm_counter<=10){
+	}else if(ch8>0.9&&disarm_counter<=10){
 		if(disarm_counter==10){
 			disarm_motors();
 			lock_motors();
@@ -3521,7 +3528,7 @@ void lock_motors_check(void){
 			unlock_motors();
 		}
 		disarm_counter=0;
-	}else if(ch6>0.9&&ch6<1.0){
+	}else if(ch6>0.9){
 		disarm_counter++;
 		if(disarm_counter>200){
 			disarm_counter=200;
@@ -3731,7 +3738,7 @@ void debug(void){
 //	usb_printf("pos_z:%f|%f|%f|%f\n",get_baroalt_filt(),get_pos_z(),get_vel_z(),accel_ef.z);
 //	usb_printf("speed:%f\n",param->auto_land_speed.value);
 //	usb_printf("z:%f\n",attitude->get_angle_roll_p().kP());
-//	usb_printf("r:%f,p:%f,y:%f,t:%f,5:%f,6:%f,7:%f,8:%f\n",get_channel_roll(),get_channel_pitch(),get_channel_yaw(), get_channel_throttle(),get_channel_9(),get_channel_10(),get_channel_11(),get_channel_12());
+//	usb_printf("r:%f,p:%f,y:%f,t:%f,5:%f,6:%f,7:%f,8:%f\n",get_channel_roll(),get_channel_pitch(),get_channel_yaw(), get_channel_throttle(),get_channel_5(),get_channel_6(),get_channel_7(),get_channel_8());
 //	usb_printf("0:%f,1:%f,4:%f,5:%f\n",motors->get_thrust_rpyt_out(0),motors->get_thrust_rpyt_out(1),motors->get_thrust_rpyt_out(4), motors->get_thrust_rpyt_out(5));
 //	usb_printf("roll:%f,pitch:%f,yaw:%f,throttle:%f\n",motors->get_roll(),motors->get_pitch(),motors->get_yaw(), motors->get_throttle());
 //	usb_printf("yaw:%f,yaw_throttle:%f\n",yaw_deg,motors->get_yaw());

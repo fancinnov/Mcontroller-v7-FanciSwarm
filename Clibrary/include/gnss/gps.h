@@ -117,6 +117,8 @@ extern "C" {
 	void Gnss_Baud_Reset(uint32_t baud);
 	void get_gnss_data(uint8_t buf);
 	bool get_gnss_state(void);
+	void set_gnss_state(bool state);
+	uint32_t get_gnss_update_ms(void);
 
 #ifdef __cplusplus
 }
