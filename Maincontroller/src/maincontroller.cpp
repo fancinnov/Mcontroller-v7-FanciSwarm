@@ -400,12 +400,10 @@ void get_tfmini_data(uint8_t buf)
 					rangefinder_state.alt_cm=rangefinder_state.alt_cm*MAX(0.707f, dcm_matrix.c.z)+pos_offset.z;
 					rangefinder_state.last_healthy_ms=HAL_GetTick();
 					get_rangefinder_data=true;
-					rangefinder_state.enabled=true;
-					if(rangefinder_state.enabled){
-						rangefinder_state.alt_healthy=true;
-					}else{
-						rangefinder_state.alt_healthy=false;
+					if(cordist>100){
+						rangefinder_state.enabled=true;
 					}
+					rangefinder_state.alt_healthy=true;
 				}else{
 					if(cordist<=3){
 						use_tfmini=false;
@@ -453,11 +451,7 @@ void get_vl53lxx_data(uint16_t distance_mm){
 		if(distance_mm>1000){
 			rangefinder_state.enabled=true;
 		}
-		if(rangefinder_state.enabled){
-			rangefinder_state.alt_healthy=true;
-		}else{
-			rangefinder_state.alt_healthy=false;
-		}
+		rangefinder_state.alt_healthy=true;
 	}else{
 		rangefinder_state.alt_healthy=false;
 	}
