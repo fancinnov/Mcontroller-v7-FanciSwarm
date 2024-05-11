@@ -891,6 +891,12 @@ typedef struct{
 		float value=AUTO_TAKEOFF_SPEED;
 	}auto_takeoff_speed;
 
+	struct baro_temp_offset_gain{
+		uint16_t num=53;
+		dataflash_type type=FLOAT;
+		float value=0.0f;
+	}baro_temp_offset_gain;
+
 	/* *************************************************
 	 * ****************Dev code begin*******************/
 	// Warning! Developer can add your new code here!

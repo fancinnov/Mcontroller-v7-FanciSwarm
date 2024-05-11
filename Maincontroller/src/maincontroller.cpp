@@ -258,6 +258,7 @@ void update_dataflash(void){
 		dataflash->set_param_vector3f(param->uwb_anchor03_pos.num, param->uwb_anchor03_pos.value);
 		dataflash->set_param_vector3f(param->uwb_anchor04_pos.num, param->uwb_anchor04_pos.value);
 		dataflash->set_param_float(param->auto_takeoff_speed.num, param->auto_takeoff_speed.value);
+		dataflash->set_param_float(param->baro_temp_offset_gain.num, param->baro_temp_offset_gain.value);
 
 		/* *************************************************
 		* ****************Dev code begin*******************/
@@ -327,6 +328,7 @@ void update_dataflash(void){
 		dataflash->get_param_vector3f(param->uwb_anchor03_pos.num, param->uwb_anchor03_pos.value);
 		dataflash->get_param_vector3f(param->uwb_anchor04_pos.num, param->uwb_anchor04_pos.value);
 		dataflash->get_param_float(param->auto_takeoff_speed.num, param->auto_takeoff_speed.value);
+		dataflash->get_param_float(param->baro_temp_offset_gain.num, param->baro_temp_offset_gain.value);
 
 		/* *************************************************
 		 * ****************Dev code begin*******************/
@@ -403,6 +405,7 @@ void get_tfmini_data(uint8_t buf)
 					if(cordist>100){
 						rangefinder_state.enabled=true;
 					}
+//					usb_printf("dis1:%f\n",rangefinder_state.alt_cm);
 					rangefinder_state.alt_healthy=true;
 				}else{
 					if(cordist<=3){
@@ -451,6 +454,7 @@ void get_vl53lxx_data(uint16_t distance_mm){
 		if(distance_mm>1000){
 			rangefinder_state.enabled=true;
 		}
+//		usb_printf("dis2:%f\n",rangefinder_state.alt_cm);
 		rangefinder_state.alt_healthy=true;
 	}else{
 		rangefinder_state.alt_healthy=false;
@@ -2171,6 +2175,8 @@ void pos_init(void){
 	sdlog->Logger_Read_Gnss();
 	rangefinder_state.alt_cm_filt.set_cutoff_frequency(rangefinder_filt_hz);//tfmini默认频率100hz
 	_uwb_pos_filter.set_cutoff_frequency(uwb_pos_filt_hz);
+	Baro_set_temp_offset_gain(param->baro_temp_offset_gain.value);
+	usb_printf("baro-offset:%f\r\n",param->baro_temp_offset_gain.value);
 }
 
 bool uwb_init(void){
@@ -2525,12 +2531,30 @@ void ahrs_update(void){
 
 static float baro_alt_filt=0,baro_alt_init=0,baro_alt_correct=0;
 static uint16_t init_baro=0;
+static float baro_offset=0.0f, baro_offset_gain=2.0f;
 void update_baro_alt(void){
 	if(init_baro<20){//前20点不要
 		init_baro++;
 		return;
 	}
-	float baro_alt=spl06_data.baro_alt*100.0f;
+	if(is_equal(param->baro_temp_offset_gain.value, 0.0f)){
+		init_baro++;
+		if(init_baro>200){
+			param->baro_temp_offset_gain.value=(spl06_data.baro_alt-spl06_data.baro_alt_init)/(spl06_data.temp-spl06_data.temp_init);
+			dataflash->set_param_float(param->baro_temp_offset_gain.num, param->baro_temp_offset_gain.value);
+			Baro_set_temp_offset_gain(param->baro_temp_offset_gain.value);
+			Buzzer_set_ring_type(BUZZER_INITIALED);
+			usb_printf("baro-offset:%f\r\n",param->baro_temp_offset_gain.value);
+		}
+		return;
+	}
+	if(abs(motors->get_throttle()-motors->get_throttle_hover())<0.05){
+		baro_offset=motors->get_throttle_hover()*baro_offset_gain;
+	}else{
+		baro_offset=0.9*baro_offset+0.1*motors->get_throttle()*baro_offset_gain;
+	}
+
+	float baro_alt=(spl06_data.baro_alt-baro_offset)*100.0f;//螺旋桨气流引起气压偏置
 	if(isnan(baro_alt) || isinf(baro_alt)){
 		return;
 	}

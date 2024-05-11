@@ -122,6 +122,8 @@ typedef struct {
 typedef struct {
 	float temp;					//℃
 	float baro_alt; 			//m
+	float temp_init;
+	float baro_alt_init;
 } SPL06_Data;
 
 typedef struct
@@ -348,6 +350,7 @@ void MAG_Get_Data(void);
 uint8_t BARO_Init(void);
 void BARO_Get_Date(void);
 void Baro_set_press_offset(float vel); //速度单位:m/s
+void Baro_set_temp_offset_gain(float gain);
 void reset_sensors(void);
 
 //光流驱动
