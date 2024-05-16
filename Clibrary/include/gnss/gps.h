@@ -35,7 +35,7 @@ extern "C" {
 	}GnssType;
 
 	typedef enum {
-		gnss_comm1 = 0,  //串口1
+		gnss_comm1 = 1,  //串口1
 		gnss_comm2,		//串口2
 		gnss_comm3,		//串口3
 		gnss_comm4		//串口4

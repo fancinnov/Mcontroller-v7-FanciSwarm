@@ -168,11 +168,13 @@ void mode_perch(void){
 			pos_control->set_xy_target(get_pos_x(), get_pos_y());
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		}else{//位置模式
+			target_yaw+=target_yaw_rate*_dt;
 			pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
 			pos_control->calc_desired_velocity(_dt);
 			pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
-			target_yaw=ahrs_yaw_deg();
-			attitude->input_euler_angle_roll_pitch_euler_rate_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw_rate);
+			target_roll=pos_control->get_roll();
+			target_pitch=pos_control->get_pitch();
+			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 		}
 		// call position controller
 		pos_control->set_alt_target_from_climb_rate_ff(target_climb_rate, _dt, false);
