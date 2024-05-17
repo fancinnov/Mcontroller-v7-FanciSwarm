@@ -3284,7 +3284,7 @@ void unlock_motors(void){
 		return;
 	}
 	//TODO: add other pre-arm check
-	if (is_equal(get_pos_z(),0.0f)||((use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()))){
+	if (is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()))){
 		Buzzer_set_ring_type(BUZZER_ERROR);
 		return;//高程计异常，禁止电机启动
 	}

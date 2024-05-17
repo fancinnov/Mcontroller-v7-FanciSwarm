@@ -289,9 +289,16 @@ void mode_autonav(void){
 				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 				target_climb_rate=get_mav_vz_target();
-				if(get_mav_z_target()>=30.0f&&get_mav_z_target()<=200.0f&&rangefinder_state.alt_healthy){
-					if(robot_state_desired!=STATE_LANDED&&!execute_land){
-						set_target_rangefinder_alt(get_mav_z_target());
+				if(get_mav_z_target()>=30.0f){
+					if(get_mav_z_target()<=200.0f&&rangefinder_state.alt_healthy){
+						if(robot_state_desired!=STATE_LANDED&&!execute_land){
+							set_target_rangefinder_alt(get_mav_z_target());
+						}
+					}else{
+						if(robot_state_desired!=STATE_LANDED&&!execute_land){
+							set_target_rangefinder_alt(constrain_float(get_mav_z_target(),50.0f,param->alt_return.value));
+							pos_control->set_alt_target(constrain_float(get_mav_z_target(),50.0f,param->alt_return.value));
+						}
 					}
 				}
 			}

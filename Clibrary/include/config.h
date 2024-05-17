@@ -72,7 +72,7 @@
 #define COMM_0 MAV_COMM
 #define COMM_1 MAV_COMM
 #define COMM_2 LC302_COMM
-#define COMM_3 TFMINI_COMM
+#define COMM_3 GPS_COMM
 #define COMM_4 MAV_COMM
 
 //串口波特率
@@ -103,7 +103,10 @@
 #define USE_CH8_LOCK 0
 
 //是否启用抗风
-#define USE_WIND 1
+#define USE_WIND 1 //启用：1 不启用：0
+
+//是否启用解锁检查
+#define PREARM_CHECK 1 //启用：1 不启用：0
 
 //配置flash
 #define USE_FRAM 2 //保持默认值,请勿更改
@@ -125,6 +128,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2024051601
+#define VERSION_FIRMWARE 2024051701
 
 #endif /* INCLUDE_CONFIG_H_ */
