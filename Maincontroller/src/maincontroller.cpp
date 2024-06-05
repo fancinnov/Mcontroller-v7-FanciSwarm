@@ -531,6 +531,7 @@ static mavlink_set_mode_t setmode;
 static mavlink_mission_count_t mission_count;
 static mavlink_mission_item_t mission_item;
 static mavlink_log_request_data_t log_request_data;
+static mavlink_command_ack_t ack;
 static mavlink_command_long_t cmd;
 static mavlink_rc_channels_override_t rc_channels;
 static mavlink_attitude_t attitude_mav;
@@ -659,6 +660,14 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				mavlink_msg_log_request_data_decode(msg_received, &log_request_data);
 				if(sdlog->m_Logger_Status==SDLog::Logger_Idle){
 					sd_send_log_file(chan, log_request_data.id-1);
+				}
+				break;
+			case MAVLINK_MSG_ID_COMMAND_ACK:
+				mavlink_msg_command_ack_decode(msg_received, &ack);
+				if(ack.command==MAV_CMD_CONDITION_DISTANCE){
+					if(ack.result>0&&ack.result<=3){
+						uwb->config_uwb((uwb_modes)ack.result, param->uwb_tag_id.value, 1, 1, param->uwb_tag_max.value, 4);
+					}
 				}
 				break;
 			case MAVLINK_MSG_ID_COMMAND_LONG:
@@ -1269,6 +1278,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 							command_long.command=MAV_CMD_DO_SET_PARAMETER;
 							command_long.param1=36.0f;
 							command_long.param2=param->uwb_yaw_delta_deg.value;
+							uwb_yaw_delta=-param->uwb_yaw_delta_deg.value*DEG_TO_RAD;
 							mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
 							mavlink_send_buffer(chan, &msg_command_long);
 							break;
@@ -1295,6 +1305,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 							param->uwb_anchor01_pos.value.y=cmd.param3;
 							param->uwb_anchor01_pos.value.z=cmd.param4;
 							dataflash->set_param_vector3f(param->uwb_anchor01_pos.num, param->uwb_anchor01_pos.value);
+							uwb->set_anchor_positon(1, param->uwb_anchor01_pos.value.x, param->uwb_anchor01_pos.value.y, param->uwb_anchor01_pos.value.z);
 							command_long.command=MAV_CMD_DO_SET_PARAMETER;
 							command_long.param1=39.0f;
 							command_long.param2=param->uwb_anchor01_pos.value.x;
@@ -1308,6 +1319,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 							param->uwb_anchor02_pos.value.y=cmd.param3;
 							param->uwb_anchor02_pos.value.z=cmd.param4;
 							dataflash->set_param_vector3f(param->uwb_anchor02_pos.num, param->uwb_anchor02_pos.value);
+							uwb->set_anchor_positon(2, param->uwb_anchor02_pos.value.x, param->uwb_anchor02_pos.value.y, param->uwb_anchor02_pos.value.z);
 							command_long.command=MAV_CMD_DO_SET_PARAMETER;
 							command_long.param1=40.0f;
 							command_long.param2=param->uwb_anchor02_pos.value.x;
@@ -1321,6 +1333,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 							param->uwb_anchor03_pos.value.y=cmd.param3;
 							param->uwb_anchor03_pos.value.z=cmd.param4;
 							dataflash->set_param_vector3f(param->uwb_anchor03_pos.num, param->uwb_anchor03_pos.value);
+							uwb->set_anchor_positon(3, param->uwb_anchor03_pos.value.x, param->uwb_anchor03_pos.value.y, param->uwb_anchor03_pos.value.z);
 							command_long.command=MAV_CMD_DO_SET_PARAMETER;
 							command_long.param1=41.0f;
 							command_long.param2=param->uwb_anchor03_pos.value.x;
@@ -1334,6 +1347,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 							param->uwb_anchor04_pos.value.y=cmd.param3;
 							param->uwb_anchor04_pos.value.z=cmd.param4;
 							dataflash->set_param_vector3f(param->uwb_anchor04_pos.num, param->uwb_anchor04_pos.value);
+							uwb->set_anchor_positon(4, param->uwb_anchor04_pos.value.x, param->uwb_anchor04_pos.value.y, param->uwb_anchor04_pos.value.z);
 							command_long.command=MAV_CMD_DO_SET_PARAMETER;
 							command_long.param1=42.0f;
 							command_long.param2=param->uwb_anchor04_pos.value.x;
@@ -1648,6 +1662,19 @@ void send_mavlink_data(mavlink_channel_t chan)
 	}
 	mavlink_msg_global_position_int_encode(mavlink_system.sysid, mavlink_system.compid, &msg_global_position_int, &global_position_int);
 	mavlink_send_buffer(chan, &msg_global_position_int);
+
+	if((uwb->TAG_ID==1||offboard_connected)&&param->uwb_tag_max.value>1&&uwb->get_range_distance(1,2)>0){
+		for(uint8_t i=1;i<param->uwb_tag_max.value;i++){
+			for(uint8_t j=i+1;j<=param->uwb_tag_max.value;j++){
+				command_long.command=MAV_CMD_CONDITION_DISTANCE;
+				command_long.param1=(float)i;
+				command_long.param2=(float)j;
+				command_long.param3=(float)uwb->get_range_distance(i,j);//cm
+				mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+				mavlink_send_buffer(chan, &msg_command_long);
+			}
+		}
+	}
 
 	//加速度计校准
 	if(!accel_cal_succeed){
@@ -3225,6 +3252,11 @@ bool arm_motors(void)
 	if (!motors->get_interlock()) {
 		return false;
 	}
+	//TODO: add other pre-arm check
+	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()))){
+		Buzzer_set_ring_type(BUZZER_ERROR);
+		return false;//传感器异常，禁止电机启动
+	}
     static bool in_arm_motors = false;
 
     // exit immediately if already in this function
@@ -3284,9 +3316,9 @@ void unlock_motors(void){
 		return;
 	}
 	//TODO: add other pre-arm check
-	if (is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()))){
+	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()))){
 		Buzzer_set_ring_type(BUZZER_ERROR);
-		return;//高程计异常，禁止电机启动
+		return;//传感器异常，禁止电机启动
 	}
 	// enable output to motors and servos
 	set_rcout_enable(true);
