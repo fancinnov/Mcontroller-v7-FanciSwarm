@@ -545,6 +545,15 @@ void GnssTask(void *argument)
 #if !USE_GNSS
 	osThreadTerminate(gnssTaskHandle);
 #endif
+	if(COMM_1==GPS_COMM){
+		set_gnss_comm(gnss_comm1);
+	}else if(COMM_2==GPS_COMM){
+		set_gnss_comm(gnss_comm2);
+	}else if(COMM_3==GPS_COMM){
+		set_gnss_comm(gnss_comm3);
+	}else if(COMM_4==GPS_COMM){
+		set_gnss_comm(gnss_comm4);
+	}
 	Gnss_Init(UM482); // GPS_Init() task will block 10s
     uint8_t state_flag=0;
   /* Infinite loop */

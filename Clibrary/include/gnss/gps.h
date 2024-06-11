@@ -119,6 +119,7 @@ extern "C" {
 	bool get_gnss_state(void);
 	void set_gnss_state(bool state);
 	uint32_t get_gnss_update_ms(void);
+	void set_gnss_comm(GnssComm comm);
 
 #ifdef __cplusplus
 }
