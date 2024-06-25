@@ -57,6 +57,7 @@ private:
 	float alt_last=0;
 	float baro_alt_last=0,gnss_alt_last=0;
 	float rf_alt_delta=0, rf_alt_last=0, gnss_alt_delta=0, baro_alt_delta=0, baro_alt_offset=0;
+	float gnss_vel_z=0.0f;
 	float K_gain=0.0f;
 	bool rf_correct=false;
 	uint8_t rf_correct_flag=0;

@@ -3744,6 +3744,7 @@ void motors_test_update(void){
  * *******************code for test and debug*********************
  *****************************************************************/
 void debug(void){
+//	usb_printf("pos_x:%f,pos_y:%f\n",get_odom_x(),get_odom_y());
 //	usb_printf("l:%f\n",get_dcm_matrix().c.z);
 //	usb_printf("ux:%f|uy:%f|uz:%f|x:%f|y:%f|vx:%f|vy:%f\n", uwb->uwb_position.x, uwb->uwb_position.y,  uwb->uwb_position.z, get_pos_x(), get_pos_y(),get_vel_x(), get_vel_y());
 //	usb_printf("gps_position lat:%lf ,lon:%lf ,alt:%lf \r\n" , (double)gps_position->lat/10000000.0,(double)gps_position->lon/10000000.0,(double)gps_position->alt/1000000.0);

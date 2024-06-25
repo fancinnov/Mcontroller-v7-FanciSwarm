@@ -254,7 +254,7 @@ void mode_autonav(void){
 				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
 			}else{
 				target_yaw_rate=get_mav_yaw_rate_target();
-				target_yaw=(get_mav_yaw_target()-yaw_delta)*RAD_TO_DEG;
+				target_yaw=(get_mav_yaw_target()*DEG_TO_RAD-yaw_delta)*RAD_TO_DEG;
 				target_yaw+=target_yaw_rate*_dt;
 				pos_control->set_speed_xy(param->mission_vel_max.value);
 				pos_control->set_accel_xy(param->mission_accel_max.value);
