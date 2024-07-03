@@ -175,7 +175,8 @@ typedef enum {
     MAVLINK_COMM_1,
     MAVLINK_COMM_2,
     MAVLINK_COMM_3,
-	MAVLINK_COMM_4
+	MAVLINK_COMM_4,
+	MAVLINK_COMM_5
 } mavlink_channel_t;
 
 /*
@@ -187,7 +188,7 @@ typedef enum {
 #if (defined linux) | (defined __linux) | (defined  __MACH__) | (defined _WIN32)
 # define MAVLINK_COMM_NUM_BUFFERS 16
 #else
-# define MAVLINK_COMM_NUM_BUFFERS 5 //this is the total number of channels in mavlink_channel_t{}
+# define MAVLINK_COMM_NUM_BUFFERS 6 //this is the total number of channels in mavlink_channel_t{}
 #endif
 #endif
 

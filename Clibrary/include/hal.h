@@ -217,11 +217,11 @@ void mode_update(void);
 void sdled_update(void);
 void comm_send_callback(void);
 void debug(void);
-void comm0_callback(uint8_t data);
-void comm1_callback(uint8_t data);
-void comm2_callback(uint8_t data);
-void comm3_callback(uint8_t data);
-void comm4_callback(uint8_t data);
+void comm0_callback(void);
+void comm1_callback(void);
+void comm2_callback(void);
+void comm3_callback(void);
+void comm4_callback(void);
 /****************c/c++ interface*******************************/
 bool get_task_initialed(void);
 uint32_t get_time_us(void);
@@ -232,6 +232,9 @@ void COMM1_Callback(void);//串口1中断回调函数
 void COMM2_Callback(void);//串口2中断回调函数
 void COMM3_Callback(void);//串口3中断回调函数
 void COMM4_Callback(void);//串口4中断回调函数
+void comm_uwb_callback(void);
+void uwb_send_mavlink_buffer(mavlink_message_t *msg);
+void uwb_send_data(void);
 
 void TIM_1000HZ_Callback(void);//1000HZ定时器中断回调函数
 void TIM_400HZ_Callback(void);//400HZ定时器中断回调函数
@@ -421,6 +424,12 @@ uint8_t get_comm1_data(void);	//读取串口1收到的数据,每调用一次可�
 uint8_t get_comm2_data(void);	//读取串口2收到的数据,每调用一次可以读取1个字节;	(注意：该函数只有在串口2是自定义模式 DEV_COMM 时才有效)
 uint8_t get_comm3_data(void);	//读取串口3收到的数据,每调用一次可以读取1个字节;	(注意：该函数只有在串口3是自定义模式 DEV_COMM 时才有效)
 uint8_t get_comm4_data(void);	//读取串口4收到的数据,每调用一次可以读取1个字节;	(注意：该函数只有在串口4是自定义模式 DEV_COMM 时才有效)
+
+void set_comm0_data(uint8_t value);
+void set_comm1_data(uint8_t value);
+void set_comm2_data(uint8_t value);
+void set_comm3_data(uint8_t value);
+void set_comm4_data(uint8_t value);
 
 /*****************************以下为usb+串口发送数据相关函数*******************************/
 /**

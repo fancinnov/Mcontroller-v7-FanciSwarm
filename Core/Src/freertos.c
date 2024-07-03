@@ -431,6 +431,8 @@ void Loop50hzTask(void *argument)
 #else
 	  comm_callback();
 #endif
+	  comm_uwb_callback();
+	  uwb_send_data();
 	  RC_Input_Loop();
 	  uwb_position_update();
 	  vl53lxx_update();

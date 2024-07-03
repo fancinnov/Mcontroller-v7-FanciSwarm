@@ -17,6 +17,7 @@
 #ifdef __cplusplus
 
 #define RX_BUF_LEN 127
+#define UWB_RINGBUFFER_LEN 2048
 
 class UWB{
 public:
@@ -54,6 +55,8 @@ public:
 	void final_msg_get_ts(const uint8_t *ts_field, uint32_t *ts);
 	void final_msg_set_ts(uint8_t *ts_field, uint32_t ts);
 	float get_range_distance(uint8_t tag_a_id, uint8_t tag_b_id);
+	RingBuffer ringbuffer_uwb_rx, ringbuffer_uwb_tx;
+	void send_buff(uint8_t* buf, uint16_t len);
 
 private:
 
@@ -67,7 +70,8 @@ private:
 		release,
 		release_confirm,
 		release_wait,
-		comm,
+		tx,
+		rx,
 		waiting,
 		ranging
 	}uwb_states;
@@ -181,6 +185,8 @@ private:
 	uint8_t delta_ts_anchor3_num=0;
 	bool get_all_tag_delta_ts=false;
 	uint16_t volt=0;
+	uint8_t tx_msg[RX_BUF_LEN];
+	uint8_t TxBuffer[UWB_RINGBUFFER_LEN],RxBuffer[UWB_RINGBUFFER_LEN];
 };
 
 #endif

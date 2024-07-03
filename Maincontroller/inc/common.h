@@ -431,7 +431,9 @@ typedef enum{
 	none=0,
 	tag=1,
 	anchor,
-	range
+	range,
+	comm_tx,
+	comm_rx
 }uwb_modes;
 
 typedef enum {
