@@ -73,6 +73,7 @@ static float mav_x_target=0.0f, mav_y_target=0.0f, mav_z_target=0.0f, mav_vx_tar
 static float completion_percent=0;
 static float uwb_yaw_delta=0.0f;
 static float takeoff_alt=0.0f;
+static uint32_t odom_time=0.0f;
 
 static Vector3f accel, gyro, mag;								//原生加速度、角速度、磁罗盘测量值
 static Vector3f accel_correct, gyro_correct, mag_correct;		//修正后的加速度、角速度、磁罗盘测量值
@@ -469,6 +470,18 @@ static float flow_gain_x=-0.025, flow_gain_y=0.025, flow_gain_z=0.0025;
 static uint8_t flow_sample_flag=0;
 void opticalflow_update(void){
 #if USE_FLOW
+	if(get_odom_xy){
+		float dt=(float)(HAL_GetTick()-odom_time)*0.001;
+		odom_time=HAL_GetTick();
+		ned_current_vel.x=(odom_3d.x-ned_current_pos.x)/dt;
+		ned_current_vel.y=(odom_3d.y-ned_current_pos.y)/dt;
+		ned_current_pos.x=odom_3d.x;
+		ned_current_pos.y=odom_3d.y;
+		get_odom_xy=false;
+		get_gnss_location=true;
+//		usb_printf("ned pos_x:%f|%f,pos_y:%f|%f\n",ned_current_pos.x,ned_current_vel.x,ned_current_pos.y,ned_current_vel.y);
+		return;
+	}
 	if(rangefinder_state.alt_healthy){
 		flow_alt=rangefinder_state.alt_cm;
 	}else{
@@ -518,9 +531,6 @@ void opticalflow_update(void){
 		ned_current_pos.x+=flow_vel.x*opticalflow_state.flow_dt;
 		ned_current_pos.y+=flow_vel.y*opticalflow_state.flow_dt;
 	}
-	get_odom_xy=true;
-	odom_3d.x+=flow_vel.x*opticalflow_state.flow_dt;
-	odom_3d.y+=flow_vel.y*opticalflow_state.flow_dt;
 #endif
 }
 
