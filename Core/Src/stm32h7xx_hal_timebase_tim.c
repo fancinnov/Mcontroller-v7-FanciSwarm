@@ -46,14 +46,14 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
 
   uint32_t              uwPrescalerValue;
   uint32_t              pFLatency;
-/*Configure the TIM5 IRQ priority */
+  /*Configure the TIM5 IRQ priority */
   if (TickPriority < (1UL << __NVIC_PRIO_BITS))
-  {
-  HAL_NVIC_SetPriority(TIM5_IRQn, TickPriority ,0U);
+   {
+     HAL_NVIC_SetPriority(TIM5_IRQn, TickPriority ,0);
 
-  /* Enable the TIM5 global Interrupt */
-  HAL_NVIC_EnableIRQ(TIM5_IRQn);
-    uwTickPrio = TickPriority;
+     /* Enable the TIM5 global Interrupt */
+     HAL_NVIC_EnableIRQ(TIM5_IRQn);
+     uwTickPrio = TickPriority;
     }
   else
   {
@@ -62,10 +62,8 @@ HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
 
   /* Enable TIM5 clock */
   __HAL_RCC_TIM5_CLK_ENABLE();
-
   /* Get clock configuration */
   HAL_RCC_GetClockConfig(&clkconfig, &pFLatency);
-
   /* Get APB1 prescaler */
   uwAPB1Prescaler = clkconfig.APB1CLKDivider;
   /* Compute TIM5 clock */

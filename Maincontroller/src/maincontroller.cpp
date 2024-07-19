@@ -470,18 +470,6 @@ static float flow_gain_x=-0.025, flow_gain_y=0.025, flow_gain_z=0.0025;
 static uint8_t flow_sample_flag=0;
 void opticalflow_update(void){
 #if USE_FLOW
-	if(get_odom_xy){
-		float dt=(float)(HAL_GetTick()-odom_time)*0.001;
-		odom_time=HAL_GetTick();
-		ned_current_vel.x=(odom_3d.x-ned_current_pos.x)/dt;
-		ned_current_vel.y=(odom_3d.y-ned_current_pos.y)/dt;
-		ned_current_pos.x=odom_3d.x;
-		ned_current_pos.y=odom_3d.y;
-		get_odom_xy=false;
-		get_gnss_location=true;
-//		usb_printf("ned pos_x:%f|%f,pos_y:%f|%f\n",ned_current_pos.x,ned_current_vel.x,ned_current_pos.y,ned_current_vel.y);
-		return;
-	}
 	if(rangefinder_state.alt_healthy){
 		flow_alt=rangefinder_state.alt_cm;
 	}else{
@@ -1785,17 +1773,17 @@ void distribute_mavlink_data(void){
 #endif
 }
 
-static mavlink_message_t msg_received;
-static mavlink_status_t status;
+static mavlink_message_t msg_received[MAVLINK_COMM_NUM_BUFFERS];
+static mavlink_status_t status[MAVLINK_COMM_NUM_BUFFERS];
 void comm0_callback(void){
 #if COMM_0==MAV_COMM
-	parse_mavlink_data(MAVLINK_COMM_0, get_comm0_data(), &msg_received, &status);
+	parse_mavlink_data(MAVLINK_COMM_0, get_comm0_data(), &msg_received[MAVLINK_COMM_0], &status[MAVLINK_COMM_0]);
 #endif
 }
 
 void comm1_callback(void){
 #if COMM_1==MAV_COMM
-	parse_mavlink_data(MAVLINK_COMM_1, get_comm1_data(), &msg_received, &status);
+	parse_mavlink_data(MAVLINK_COMM_1, get_comm1_data(), &msg_received[MAVLINK_COMM_1], &status[MAVLINK_COMM_1]);
 #elif COMM_1==GPS_COMM
 	get_gnss_data(get_comm1_data());
 #elif COMM_1==TFMINI_COMM
@@ -1807,7 +1795,7 @@ void comm1_callback(void){
 
 void comm2_callback(void){
 #if COMM_2==MAV_COMM
-	parse_mavlink_data(MAVLINK_COMM_2, get_comm2_data(), &msg_received, &status);
+	parse_mavlink_data(MAVLINK_COMM_2, get_comm2_data(), &msg_received[MAVLINK_COMM_2], &status[MAVLINK_COMM_2]);
 #elif COMM_2==GPS_COMM
 	get_gnss_data(get_comm2_data());
 #elif COMM_2==TFMINI_COMM
@@ -1819,7 +1807,7 @@ void comm2_callback(void){
 
 void comm3_callback(void){
 #if COMM_3==MAV_COMM
-	parse_mavlink_data(MAVLINK_COMM_3, get_comm3_data(), &msg_received, &status);
+	parse_mavlink_data(MAVLINK_COMM_3, get_comm3_data(), &msg_received[MAVLINK_COMM_3], &status[MAVLINK_COMM_3]);
 #elif COMM_3==GPS_COMM
 	get_gnss_data(get_comm3_data());
 #elif COMM_3==TFMINI_COMM
@@ -1831,7 +1819,7 @@ void comm3_callback(void){
 
 void comm4_callback(void){
 #if COMM_4==MAV_COMM
-	parse_mavlink_data(MAVLINK_COMM_4, get_comm4_data(), &msg_received, &status);
+	parse_mavlink_data(MAVLINK_COMM_4, get_comm4_data(), &msg_received[MAVLINK_COMM_4], &status[MAVLINK_COMM_4]);
 #elif COMM_4==GPS_COMM
 	get_gnss_data(get_comm4_data());
 #elif COMM_4==TFMINI_COMM
@@ -1846,7 +1834,7 @@ void comm_uwb_callback(void){
 	uint16_t length=rbGetCount(&uwb->ringbuffer_uwb_rx);
 	while(length>0){
 	  length--;
-	  parse_mavlink_data(MAVLINK_COMM_5, rbPop(&uwb->ringbuffer_uwb_rx), &msg_received, &status);
+	  parse_mavlink_data(MAVLINK_COMM_5, rbPop(&uwb->ringbuffer_uwb_rx), &msg_received[MAVLINK_COMM_5], &status[MAVLINK_COMM_5]);
 	}
 #elif COMM_UWB==CONFIG_COMM
 	if(COMM_0==DEV_COMM){
@@ -2680,7 +2668,13 @@ static RTC_TimeTypeDef sTime;
 static RTC_DateTypeDef sDate;
 static float yaw_gnss_offset=0.0f;
 static uint8_t yaw_gnss_flag=0;
+static uint32_t gnss_last_update_time=0;
 void gnss_update(void){
+	if(get_gnss_update_ms()==gnss_last_update_time){
+		return;
+	}else{
+		gnss_last_update_time=get_gnss_update_ms();
+	}
 	if(get_gnss_state()){
 		if((HAL_GetTick()-get_gnss_update_ms())>1000){
 			set_gnss_state(false);
@@ -2772,6 +2766,17 @@ void ekf_gnss_xy(void){
 		return;
 	}
 	update_pos=true;
+	if(get_odom_xy){
+		float dt=(float)(HAL_GetTick()-odom_time)*0.001;
+		odom_time=HAL_GetTick();
+		ned_current_vel.x=(odom_3d.x-ned_current_pos.x)/dt;
+		ned_current_vel.y=(odom_3d.y-ned_current_pos.y)/dt;
+		ned_current_pos.x=odom_3d.x;
+		ned_current_pos.y=odom_3d.y;
+		get_odom_xy=false;
+		get_gnss_location=true;
+//		usb_printf("ned pos_x:%f|%f,pos_y:%f|%f\n",ned_current_pos.x,ned_current_vel.x,ned_current_pos.y,ned_current_vel.y);
+	}
 	ekf_wind->update(get_gnss_location,get_ned_vel_x(),get_ned_vel_y());
 	ekf_gnss->update(get_gnss_location,get_ned_pos_x(),get_ned_pos_y(),get_ned_vel_x(),get_ned_vel_y());
 //	usb_printf("x:%f|y:%f\n",ekf_wind->wind_x,ekf_wind->wind_y);

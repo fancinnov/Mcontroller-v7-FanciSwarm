@@ -379,6 +379,11 @@ void Loop200hzTask(void *argument)
   for(;;)
   {
 	  osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
+#if COMM_0==CONFIG_COMM
+	  config_callback();
+#else
+	  comm_callback();
+#endif
 	  comm_send_callback();
 	  adc_update();
   }
@@ -426,11 +431,6 @@ void Loop50hzTask(void *argument)
   for(;;)
   {
 	  osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
-#if COMM_0==CONFIG_COMM
-	  config_callback();
-#else
-	  comm_callback();
-#endif
 	  comm_uwb_callback();
 	  uwb_send_data();
 	  RC_Input_Loop();
@@ -561,17 +561,17 @@ void GnssTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  if(state_flag<4){
+	  if(state_flag<100){
 		  FMU_LED5_Control(true);
 	  }else{
 		  FMU_LED5_Control(get_gnss_state());// gps state
 	  }
 	  gnss_update();
 	  state_flag++;
-	  if(state_flag>=10){
+	  if(state_flag>=200){
 		  state_flag=0;
 	  }
-	  osDelay(100);
+	  osDelay(1);
   }
   /* USER CODE END GnssTask */
 }
