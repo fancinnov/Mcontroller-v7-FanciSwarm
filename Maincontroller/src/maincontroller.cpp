@@ -404,6 +404,7 @@ void get_tfmini_data(uint8_t buf)
 					rangefinder_state.alt_cm=rangefinder_state.alt_cm*MAX(0.707f, dcm_matrix.c.z)+pos_offset.z;
 					rangefinder_state.last_healthy_ms=HAL_GetTick();
 					get_rangefinder_data=true;
+					enable_surface_track=true;
 					if(cordist>100){
 						rangefinder_state.enabled=true;
 					}
@@ -456,7 +457,7 @@ void get_vl53lxx_data(uint16_t distance_mm){
 		if(distance_mm>1000){
 			rangefinder_state.enabled=true;
 		}
-//		usb_printf("dis2:%f\n",rangefinder_state.alt_cm);
+//		usb_printf("dis2:%d\n",distance_mm);
 		rangefinder_state.alt_healthy=true;
 	}else{
 		rangefinder_state.alt_healthy=false;
@@ -468,6 +469,7 @@ static Vector3f flow_gyro_offset;
 static Vector2f flow_vel, flow_vel_delta, flow_vel_sample[5];
 static float flow_gain_x=-0.025, flow_gain_y=0.025, flow_gain_z=0.0025;
 static uint8_t flow_sample_flag=0;
+static bool lose_flow=false;
 void opticalflow_update(void){
 #if USE_FLOW
 	if(rangefinder_state.alt_healthy){
@@ -495,6 +497,11 @@ void opticalflow_update(void){
 	flow_vel_delta.y=MAX(get_accel_ef().y*100*0.3,30.0f);
 	flow_vel.x=constrain_float(opticalflow_state.rads.x*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.x-flow_vel_delta.x, opticalflow_state.vel.x+flow_vel_delta.x);
 	flow_vel.y=constrain_float(opticalflow_state.rads.y*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.y-flow_vel_delta.y, opticalflow_state.vel.y+flow_vel_delta.y);
+	if(abs(flow_vel.length()-ekf_baro->vel_2d)>20.0f&&!lose_flow){//奇异值
+		lose_flow=true;
+		return;
+	}
+	lose_flow=false;
 	opticalflow_state.vel=flow_vel;
 	opticalflow_state.pos+=opticalflow_state.vel*opticalflow_state.flow_dt;
 	if(flow_sample_flag<5){

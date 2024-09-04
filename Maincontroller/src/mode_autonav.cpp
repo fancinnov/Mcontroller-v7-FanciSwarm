@@ -313,7 +313,7 @@ void mode_autonav(void){
 		}
 
 		if(target_climb_rate<-1.0f){
-			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<7.0f)){
+			if(rangefinder_state.enabled&&rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<6.0f)){
 				disarm_motors();
 			}
 		}

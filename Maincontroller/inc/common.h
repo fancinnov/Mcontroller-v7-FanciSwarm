@@ -39,7 +39,7 @@
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_PITCH_D
-  # define AC_ATC_MULTI_RATE_PITCH_D          0.002f
+  # define AC_ATC_MULTI_RATE_PITCH_D          0.0015f
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_ROLL_P
@@ -51,7 +51,7 @@
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_ROLL_D
-  # define AC_ATC_MULTI_RATE_ROLL_D           0.002f
+  # define AC_ATC_MULTI_RATE_ROLL_D           0.0015f
 #endif
 
 #ifndef AC_ATC_MULTI_RATE_RP_IMAX
@@ -201,7 +201,7 @@
 #define ACRO_YAW_P 1.5f
 #define MAN_THR_FILT_HZ 0.5f
 #define LOWBATT_RETURN_VOLT 0.0f
-#define LOWBATT_LAND_VOLT 6.4f
+#define LOWBATT_LAND_VOLT 6.8f
 #define POSHOLD_VEL_MAX 100.0f		//1m/s
 #define POSHOLD_ACCEL_MAX 100.0f	//1m/ss
 #define MISSION_VEL_MAX 100.0f		//1m/s
