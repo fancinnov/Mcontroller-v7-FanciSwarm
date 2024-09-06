@@ -60,7 +60,6 @@ private:
 	float gnss_vel_z=0.0f;
 	float K_gain=0.0f;
 	bool rf_correct=false;
-	uint8_t rf_correct_flag=0;
 	float baro_alt_init=0.0f;
 	float baro_alt_real=0.0f;
 };

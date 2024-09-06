@@ -561,17 +561,17 @@ void GnssTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  if(state_flag<100){
+	  if(state_flag<10){
 		  FMU_LED5_Control(true);
 	  }else{
 		  FMU_LED5_Control(get_gnss_state());// gps state
 	  }
 	  gnss_update();
 	  state_flag++;
-	  if(state_flag>=200){
+	  if(state_flag>=20){
 		  state_flag=0;
 	  }
-	  osDelay(1);
+	  osDelay(20);
   }
   /* USER CODE END GnssTask */
 }

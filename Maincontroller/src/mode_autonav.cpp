@@ -20,6 +20,9 @@ static float jump_alt=0.0f;
 static uint16_t land_detect=0;
 static float takeoff_alt=0.0f;
 static bool hit_target_takeoff_alt=true;
+static uint8_t landing=0;
+static float landing_alt=0.0f;
+static float relative_alt=0.0f;
 bool mode_autonav_init(void){
 	if(motors->get_armed()){//电机未锁定,禁止切换至该模式
 		Buzzer_set_ring_type(BUZZER_ERROR);
@@ -133,7 +136,8 @@ void mode_autonav(void){
 			set_land_complete(false);
 			// clear i terms
 			set_throttle_takeoff();
-
+			landing_alt=get_pos_z();
+			landing=0;
 			if(jump){//起飞时直接跳起
 				pos_control->get_accel_z_pid().set_integrator(0.0f);
 				pos_control->set_alt_target(get_pos_z()+jump_alt);//设置目标高度比当前高度高jump_alt
@@ -188,6 +192,7 @@ void mode_autonav(void){
 	case AltHold_Landed:
 		robot_state=STATE_LANDED;
 		execute_land=false;
+		landing=0;
 		// set motors to spin-when-armed if throttle below deadzone, otherwise full range (but motors will only spin at min throttle)
 		if (target_climb_rate < 0.0f) {
 			motors->set_desired_spool_state(Motors::DESIRED_SPIN_WHEN_ARMED);
@@ -289,14 +294,15 @@ void mode_autonav(void){
 				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 				target_climb_rate=get_mav_vz_target();
-				if(get_mav_z_target()>=30.0f){
+				relative_alt=get_mav_z_target()-landing_alt;
+				if(relative_alt>=30.0f){
 					if(get_mav_z_target()<=200.0f&&rangefinder_state.alt_healthy){
 						if(robot_state_desired!=STATE_LANDED&&!execute_land){
-							set_target_rangefinder_alt(get_mav_z_target());
+							set_target_rangefinder_alt(relative_alt);
 						}
 					}else{
 						if(robot_state_desired!=STATE_LANDED&&!execute_land){
-							set_target_rangefinder_alt(constrain_float(get_mav_z_target(),50.0f,param->alt_return.value));
+							set_target_rangefinder_alt(constrain_float(relative_alt,50.0f,param->alt_return.value));
 							pos_control->set_alt_target(constrain_float(get_mav_z_target(),50.0f,param->alt_return.value));
 						}
 					}
@@ -308,13 +314,20 @@ void mode_autonav(void){
 			execute_land=true;
 		}
 
-		if(robot_state_desired==STATE_LANDED||execute_land){//自动降落
+		if(robot_state_desired==STATE_LANDED||execute_land||landing>1){//自动降落
 			target_climb_rate=-constrain_float(param->auto_land_speed.value, 0.0f, param->pilot_speed_dn.value);//设置降落速度cm/s
 		}
 
 		if(target_climb_rate<-1.0f){
-			if(rangefinder_state.enabled&&rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<6.0f)){
+			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<30.0f&&rangefinder_state.alt_cm>20.0f)){
+				landing++;
+				if(landing>2){
+					landing=2;
+				}
+			}
+			if(landing>1&&rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<6.0f)){
 				disarm_motors();
+				landing=0;
 			}
 		}
 

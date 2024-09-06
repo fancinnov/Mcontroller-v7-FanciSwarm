@@ -2620,10 +2620,14 @@ void update_baro_alt(void){
 		}
 		return;
 	}
-	if(abs(motors->get_throttle()-motors->get_throttle_hover())<0.05){
-		baro_offset=motors->get_throttle_hover()*baro_offset_gain;
+	if(rangefinder_state.enabled&&rangefinder_state.alt_healthy){
+		baro_offset=0.0f;
 	}else{
-		baro_offset=0.9*baro_offset+0.1*motors->get_throttle()*baro_offset_gain;
+		if(abs(motors->get_throttle()-motors->get_throttle_hover())<0.05){
+			baro_offset=motors->get_throttle_hover()*baro_offset_gain;
+		}else{
+			baro_offset=0.9*baro_offset+0.1*motors->get_throttle()*baro_offset_gain;
+		}
 	}
 
 	float baro_alt=(spl06_data.baro_alt-baro_offset)*100.0f;//螺旋桨气流引起气压偏置
@@ -2677,16 +2681,16 @@ static float yaw_gnss_offset=0.0f;
 static uint8_t yaw_gnss_flag=0;
 static uint32_t gnss_last_update_time=0;
 void gnss_update(void){
+	if((HAL_GetTick()-get_gnss_update_ms())>1000){
+		set_gnss_state(false);
+		return;
+	}
 	if(get_gnss_update_ms()==gnss_last_update_time){
 		return;
 	}else{
 		gnss_last_update_time=get_gnss_update_ms();
 	}
 	if(get_gnss_state()){
-		if((HAL_GetTick()-get_gnss_update_ms())>1000){
-			set_gnss_state(false);
-			return;
-		}
 		if(!initial_gnss){
 			gnss_origin_pos.lat=gps_position->lat;//纬度:deg*1e-7
 			gnss_origin_pos.lng=gps_position->lon;//经度:deg*1e-7
@@ -3675,8 +3679,8 @@ void Logger_Cat_Callback(void){
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_SENSOR
 			"magx", "magy", "magz", "baro", "voltage", "current", "sat_num", "wind_x", "wind_y");
 	osDelay(2);
-	sd_log_write("%8s %8s %8s %8s %8s %8s %8s ",//LOG_EULER
-			"pitch_log", "roll_log", "yaw_log", "pitchd", "rolld", "yawd", "rtk_yawd");
+	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_EULER
+			"pitch_log", "roll_log", "yaw_log", "pitchd", "rolld", "yawd", "rtk_yawd", "lat_noi", "lon_noi", "alt_noi");
 	osDelay(2);
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_ACCEL_EARTH_FRAME and VIB
 			"gyrox_t", "gyroy_t", "gyroz_t", "efx", "efy", "efz", "vib_vl", "vib_ag");
@@ -3724,8 +3728,8 @@ void Logger_Data_Callback(void){
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8d %8.3f %8.3f ",//LOG_SENSOR
 			get_mag_filt().x, get_mag_filt().y, get_mag_filt().z, spl06_data.baro_alt, get_batt_volt(), get_batt_current(), gps_position->satellites_used, ekf_wind->wind_x_filt, ekf_wind->wind_y_filt);
 	osDelay(2);
-	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_EULER
-			pitch_log*RAD_TO_DEG, roll_log*RAD_TO_DEG, yaw_log*RAD_TO_DEG, ahrs_pitch_deg(), ahrs_roll_deg(), ahrs_yaw_deg(), gps_position->heading);
+	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_EULER
+			pitch_log*RAD_TO_DEG, roll_log*RAD_TO_DEG, yaw_log*RAD_TO_DEG, ahrs_pitch_deg(), ahrs_roll_deg(), ahrs_yaw_deg(), gps_position->heading, gps_position->lat_noise, gps_position->lon_noise, gps_position->alt_noise);
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_ACCEL_EARTH_FRAME and VIB
 			attitude->rate_bf_targets().x, attitude->rate_bf_targets().y, attitude->rate_bf_targets().z, get_accel_ef().x, get_accel_ef().y, get_accel_ef().z, get_vib_value(), get_vib_angle_z());
