@@ -499,10 +499,10 @@ void opticalflow_update(void){
 	flow_vel.y=constrain_float(opticalflow_state.rads.y*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.y-flow_vel_delta.y, opticalflow_state.vel.y+flow_vel_delta.y);
 	if(abs(flow_vel.length()-ekf_baro->vel_2d)>20.0f&&!lose_flow){//奇异值
 		lose_flow=true;
-		return;
+	}else{
+		opticalflow_state.vel=flow_vel;
+		lose_flow=false;
 	}
-	lose_flow=false;
-	opticalflow_state.vel=flow_vel;
 	opticalflow_state.pos+=opticalflow_state.vel*opticalflow_state.flow_dt;
 	if(flow_sample_flag<5){
 		flow_vel_sample[flow_sample_flag]=flow_vel;
@@ -521,10 +521,10 @@ void opticalflow_update(void){
 //	usb_printf_dir("$%d %d;",(int16_t)flow_vel.y, (int16_t)flow_vel_sample[flow_sample_flag%10].y);
 	if(!get_gnss_state()){
 		get_gnss_location=true;
-		ned_current_vel.x=flow_vel.x;
-		ned_current_vel.y=flow_vel.y;
-		ned_current_pos.x+=flow_vel.x*opticalflow_state.flow_dt;
-		ned_current_pos.y+=flow_vel.y*opticalflow_state.flow_dt;
+		ned_current_vel.x=opticalflow_state.vel.x;
+		ned_current_vel.y=opticalflow_state.vel.y;
+		ned_current_pos.x+=opticalflow_state.vel.x*opticalflow_state.flow_dt;
+		ned_current_pos.y+=opticalflow_state.vel.y*opticalflow_state.flow_dt;
 	}
 #endif
 }
