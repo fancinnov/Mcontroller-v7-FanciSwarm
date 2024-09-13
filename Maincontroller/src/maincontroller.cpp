@@ -2620,14 +2620,10 @@ void update_baro_alt(void){
 		}
 		return;
 	}
-	if(rangefinder_state.enabled&&rangefinder_state.alt_healthy){
-		baro_offset=0.0f;
+	if(abs(motors->get_throttle()-motors->get_throttle_hover())<0.05){
+		baro_offset=motors->get_throttle_hover()*baro_offset_gain;
 	}else{
-		if(abs(motors->get_throttle()-motors->get_throttle_hover())<0.05){
-			baro_offset=motors->get_throttle_hover()*baro_offset_gain;
-		}else{
-			baro_offset=0.9*baro_offset+0.1*motors->get_throttle()*baro_offset_gain;
-		}
+		baro_offset=0.9*baro_offset+0.1*motors->get_throttle()*baro_offset_gain;
 	}
 
 	float baro_alt=(spl06_data.baro_alt-baro_offset)*100.0f;//螺旋桨气流引起气压偏置
