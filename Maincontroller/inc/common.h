@@ -308,6 +308,8 @@ float get_mav_vz_target(void);
 float get_mav_ax_target(void);
 float get_mav_ay_target(void);
 float get_mav_az_target(void);
+float get_mav_ax_roll_target(void);
+float get_mav_ay_pitch_target(void);
 float get_mav_yaw_target(void);
 float get_mav_yaw_rate_target(void);
 

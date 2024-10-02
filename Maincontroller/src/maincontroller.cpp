@@ -69,7 +69,7 @@ static float pitch_log=0 , roll_log=0 , yaw_log=0;
 static float cos_roll=0, cos_pitch=0, cos_yaw=0, sin_roll=0, sin_pitch=0, sin_yaw=0;
 static float yaw_map=0.0f;
 static float mav_x_target=0.0f, mav_y_target=0.0f, mav_z_target=0.0f, mav_vx_target=0.0f, mav_vy_target=0.0f, mav_vz_target=0.0f, mav_yaw_target=0.0f,
-			 mav_ax_target=0.0f, mav_ay_target=0.0f, mav_az_target=0.0f, mav_yaw_rate_target=0.0f;
+		mav_ax_roll_target=0.0f, mav_ay_pitch_target=0.0f, mav_ax_target=0.0f, mav_ay_target=0.0f, mav_az_target=0.0f, mav_yaw_rate_target=0.0f;
 static float completion_percent=0;
 static float uwb_yaw_delta=0.0f;
 static float takeoff_alt=0.0f;
@@ -91,7 +91,7 @@ static LowPassFilterVector3f _mag_filter, _uwb_pos_filter, _flow_gyro_filter;
 parameter *param=new parameter();
 ap_t *ap=new ap_t();
 AHRS *ahrs=new AHRS(_dt);
-EKF_Baro *ekf_baro=new EKF_Baro(_dt, 0.0016, 1.0, 0.000016, 0.000016);
+EKF_Baro *ekf_baro=new EKF_Baro(_dt, 0.01, 1.0, 0.000016, 0.000016);
 EKF_Rangefinder *ekf_rangefinder=new EKF_Rangefinder(_dt, 1.0, 0.000016, 0.16);
 EKF_Odometry *ekf_odometry=new EKF_Odometry(_dt, 0.0016, 0.0016, 0.000016, 0.00016, 0.000016, 0.00016);
 EKF_GNSS *ekf_gnss=new EKF_GNSS(_dt, 0.0016, 0.0016, 0.0016, 0.0016, 0.000016, 0.000016, 0.000016, 0.000016);
@@ -190,6 +190,8 @@ float get_mav_vz_target(void){return mav_vz_target;}
 float get_mav_ax_target(void){return mav_ax_target;}
 float get_mav_ay_target(void){return mav_ay_target;}
 float get_mav_az_target(void){return mav_az_target;}
+float get_mav_ax_roll_target(void){return mav_ax_roll_target;}
+float get_mav_ay_pitch_target(void){return mav_ay_pitch_target;}
 float get_mav_yaw_target(void){return mav_yaw_target;}
 float get_mav_yaw_rate_target(void){return mav_yaw_rate_target;}
 
@@ -483,6 +485,11 @@ void opticalflow_update(void){
 		get_opticalflow=true;
 	}else{
 		opticalflow_state.healthy=false;
+		flow_sample_flag=0;
+		if(!get_gnss_state()){
+			ned_current_vel.x=0.0f;
+			ned_current_vel.y=0.0f;
+		}
 		return;
 	}
 	//光流坐标系->机体坐标系//TODO:add gyro offset
@@ -1480,6 +1487,10 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				mav_az_target=set_position_target_local_ned.afz * 100.0f;
 				mav_yaw_target=set_position_target_local_ned.yaw*RAD_TO_DEG;
 				mav_yaw_rate_target=set_position_target_local_ned.yaw_rate*RAD_TO_DEG;
+				if(set_position_target_local_ned.coordinate_frame==MAV_FRAME_BODY_NED){
+					mav_ax_roll_target=set_position_target_local_ned.afx*RAD_TO_DEG;
+					mav_ay_pitch_target=set_position_target_local_ned.afy*RAD_TO_DEG;
+				}
 				break;
 			case  MAVLINK_MSG_ID_GLOBAL_VISION_POSITION_ESTIMATE:
 				mavlink_msg_global_vision_position_estimate_decode(msg_received, &pose);
@@ -1667,7 +1678,12 @@ void send_mavlink_data(mavlink_channel_t chan)
 		global_position_int.alt=gps_position->alt;//mm
 	}
 	global_position_int.relative_alt=(int32_t)(rangefinder_state.alt_cm*10);//对地高度 mm
-	global_position_int.hdg=(uint16_t)gps_position->satellites_used|((uint16_t)gps_position->heading_status<<8)|((uint16_t)gps_position->fix_type<<12);//卫星数+定向状态+定位状态
+	if(get_gnss_state()){
+		global_position_int.hdg=(uint16_t)gps_position->satellites_used|((uint16_t)gps_position->heading_status<<8)|((uint16_t)(gps_position->fix_type+get_gnss_stabilize())<<12);//卫星数+定向状态+定位状态
+	}else{
+		global_position_int.hdg=0;
+	}
+
 	global_position_int.vx=get_vel_x(); //速度cm/s
 	global_position_int.vy=get_vel_y(); //速度cm/s
 	global_position_int.vz=get_vel_z(); //速度cm/s
@@ -2505,6 +2521,7 @@ void update_mag_data(void){
 					mag_curr.y=-mag_2d_len*sin(yaw_rad);
 					mag_offset.x=mag_filt.x-mag_curr.x;
 					mag_offset.y=mag_filt.y-mag_curr.y;
+					mag_offset.z=mag_filt.z-mag_orin.z;
 					mag_correct-=mag_offset;
 					_mag_filter.reset(mag_correct);
 				}
@@ -2676,9 +2693,16 @@ static RTC_DateTypeDef sDate;
 static float yaw_gnss_offset=0.0f;
 static uint8_t yaw_gnss_flag=0;
 static uint32_t gnss_last_update_time=0;
+static Vector2f gnss_sample_2d, ned_sample_2d_last;
+static uint8_t gnss_sample_tick=0;
+static uint8_t gnss_stabilize=0;
+bool get_gnss_stabilize(void){
+	return gnss_stabilize==10;
+}
 void gnss_update(void){
 	if((HAL_GetTick()-get_gnss_update_ms())>1000){
 		set_gnss_state(false);
+		gnss_stabilize=0;
 		return;
 	}
 	if(get_gnss_update_ms()==gnss_last_update_time){
@@ -2721,6 +2745,27 @@ void gnss_update(void){
 		ned_current_vel.x=gps_position->vel_n_m_s*100;//cm
 		ned_current_vel.y=gps_position->vel_e_m_s*100;//cm
 		ned_current_vel.z=gps_position->vel_d_m_s*100;//cm
+		if(gnss_sample_tick==0){
+			gnss_sample_2d.x=ned_current_pos.x-ned_sample_2d_last.x;
+			gnss_sample_2d.y=ned_current_pos.y-ned_sample_2d_last.y;
+//			usb_printf("gnss_sample:%f\n",gnss_sample_2d.length());
+			if(gnss_sample_2d.length()<8.0f){
+				gnss_stabilize++;
+				if(gnss_stabilize>10){
+					gnss_stabilize=10;
+				}
+			}else{
+				gnss_stabilize=0;
+			}
+			ned_sample_2d_last.x=ned_current_pos.x;
+			ned_sample_2d_last.y=ned_current_pos.y;
+		}
+		gnss_sample_tick++;
+		if(gnss_sample_tick>20){
+			gnss_sample_tick=0;
+		}
+	}else{
+		gnss_stabilize=0;
 	}
 }
 
@@ -2754,6 +2799,7 @@ void uwb_position_update(void){
 #endif
 }
 
+static uint32_t update_odom_time=0;
 void ekf_odom_xy(void){
 #if USE_ODOMETRY
 	if(!ahrs->is_initialed()||(!ahrs_healthy)){
@@ -2763,10 +2809,18 @@ void ekf_odom_xy(void){
 		return;
 	}
 	update_pos=true;
+	if(get_odom_xy){
+		update_odom_time=HAL_GetTick();
+	}else{
+		if(HAL_GetTick()-update_odom_time>1000&&robot_state==STATE_STOP){//未起飞且定位源失效
+			ekf_odometry->reset();
+		}
+	}
 	ekf_odometry->update(get_odom_xy,odom_3d.x,odom_3d.y);
 #endif
 }
 
+static uint32_t update_gnss_time=0;
 void ekf_gnss_xy(void){
 #if USE_GNSS
 	if(!ahrs->is_initialed()||(!ahrs_healthy)||(!get_gnss_state()&&!get_opticalflow)){
@@ -2783,6 +2837,14 @@ void ekf_gnss_xy(void){
 		get_odom_xy=false;
 		get_gnss_location=true;
 //		usb_printf("ned pos_x:%f|%f,pos_y:%f|%f\n",ned_current_pos.x,ned_current_vel.x,ned_current_pos.y,ned_current_vel.y);
+	}
+	if(get_gnss_location){
+		update_gnss_time=HAL_GetTick();
+	}else{
+		if(HAL_GetTick()-update_gnss_time>1000&&robot_state==STATE_STOP){//未起飞且定位源失效
+			ekf_wind->reset();
+			ekf_gnss->reset();
+		}
 	}
 	ekf_wind->update(get_gnss_location,get_ned_vel_x(),get_ned_vel_y());
 	ekf_gnss->update(get_gnss_location,get_ned_pos_x(),get_ned_pos_y(),get_ned_vel_x(),get_ned_vel_y());
@@ -3317,7 +3379,7 @@ bool arm_motors(void)
 		return false;
 	}
 	//TODO: add other pre-arm check
-	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()))||!update_pos){
+	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos){
 		Buzzer_set_ring_type(BUZZER_ERROR);
 		return false;//传感器异常，禁止电机启动
 	}
@@ -3380,7 +3442,7 @@ void unlock_motors(void){
 		return;
 	}
 	//TODO: add other pre-arm check
-	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()))||!update_pos){
+	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos){
 		Buzzer_set_ring_type(BUZZER_ERROR);
 		return;//传感器异常，禁止电机启动
 	}

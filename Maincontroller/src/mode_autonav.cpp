@@ -263,29 +263,41 @@ void mode_autonav(void){
 				target_yaw+=target_yaw_rate*_dt;
 				pos_control->set_speed_xy(param->mission_vel_max.value);
 				pos_control->set_accel_xy(param->mission_accel_max.value);
-				if(!get_first_pos){
-					ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
-					ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
-					get_first_pos=true;
-				}
-				if(reach_target_point){
-					ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
-					ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
-				}
 
-				ned_dis_2d.x=ned_target_pos.x-pos_control->get_pos_target().x;//重新计算当前目标与上一个目标点的距离
-				ned_dis_2d.y=ned_target_pos.y-pos_control->get_pos_target().y;
-				if(ned_dis_2d.length()>1.0f){
-					reach_target_point=false;
-					vel_desired=ned_dis_2d.normalized()*30;//设置30cm/s的跟踪速度
-					pos_control->shift_pos_xy_target(vel_desired.x*_dt, vel_desired.y*_dt);
-				}else{
-					pos_control->set_desired_velocity_xy(0.0f, 0.0f);
-					ned_target_dis_2d.x=ned_target_pos.x-get_pos_x();
-					ned_target_dis_2d.y=ned_target_pos.y-get_pos_y();
-					if(ned_target_dis_2d.length()<50.0){//距离目标点小于50cm认为到达
-						reach_target_point=true;
+				if(is_equal(get_mav_ax_roll_target(), 0.0f)&&is_equal(get_mav_ay_pitch_target(), 0.0f)){
+					if(is_equal(get_mav_vx_target(), 0.0f)&&is_equal(get_mav_vy_target(), 0.0f)&&is_equal(get_mav_ax_target(), 0.0f)&&is_equal(get_mav_ay_target(), 0.0f)){
+						if(!get_first_pos){
+							ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
+							ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
+							get_first_pos=true;
+						}
+						if(reach_target_point){
+							ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
+							ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
+						}
+
+						ned_dis_2d.x=ned_target_pos.x-pos_control->get_pos_target().x;//重新计算当前目标与上一个目标点的距离
+						ned_dis_2d.y=ned_target_pos.y-pos_control->get_pos_target().y;
+						if(ned_dis_2d.length()>1.0f){
+							reach_target_point=false;
+							vel_desired=ned_dis_2d.normalized()*30;//设置30cm/s的跟踪速度
+							pos_control->shift_pos_xy_target(vel_desired.x*_dt, vel_desired.y*_dt);
+						}else{
+							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
+							ned_target_dis_2d.x=ned_target_pos.x-get_pos_x();
+							ned_target_dis_2d.y=ned_target_pos.y-get_pos_y();
+							if(ned_target_dis_2d.length()<50.0){//距离目标点小于50cm认为到达
+								reach_target_point=true;
+							}
+						}
+					}else{
+						pos_control->set_xy_target(get_mav_x_target(),get_mav_y_target());
+						pos_control->set_desired_velocity_xy(get_mav_vx_target(), get_mav_vy_target());
+						pos_control->set_desired_accel_xy(get_mav_ax_target(), get_mav_ay_target());
 					}
+				}else{
+					pos_control->set_pilot_desired_acceleration(get_mav_ax_roll_target(), get_mav_ay_pitch_target(), target_yaw, _dt);
+					pos_control->calc_desired_velocity(_dt);
 				}
 
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
@@ -294,7 +306,7 @@ void mode_autonav(void){
 				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 				target_climb_rate=get_mav_vz_target();
-				relative_alt=get_mav_z_target()-landing_alt;
+				relative_alt=get_mav_z_target();
 				if(relative_alt>=30.0f){
 					if(get_mav_z_target()<=200.0f&&rangefinder_state.alt_healthy){
 						if(robot_state_desired!=STATE_LANDED&&!execute_land){
@@ -303,7 +315,7 @@ void mode_autonav(void){
 					}else{
 						if(robot_state_desired!=STATE_LANDED&&!execute_land){
 							set_target_rangefinder_alt(constrain_float(relative_alt,50.0f,param->alt_return.value));
-							pos_control->set_alt_target(constrain_float(get_mav_z_target(),50.0f,param->alt_return.value));
+							pos_control->set_alt_target(constrain_float(relative_alt+landing_alt,50.0f,param->alt_return.value));
 						}
 					}
 				}

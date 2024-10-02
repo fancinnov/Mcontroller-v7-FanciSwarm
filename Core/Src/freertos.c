@@ -562,7 +562,7 @@ void GnssTask(void *argument)
   for(;;)
   {
 	  if(state_flag<10){
-		  FMU_LED5_Control(true);
+		  FMU_LED5_Control(get_gnss_stabilize());
 	  }else{
 		  FMU_LED5_Control(get_gnss_state());// gps state
 	  }

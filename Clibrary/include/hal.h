@@ -193,6 +193,7 @@ void update_mag_data(void);
 void update_baro_alt(void);
 void ahrs_update(void);
 void gnss_update(void);
+bool get_gnss_stabilize(void);
 bool uwb_init(void);
 void uwb_update(void);
 void uwb_position_update(void);
