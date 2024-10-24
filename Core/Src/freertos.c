@@ -141,6 +141,13 @@ const osThreadAttr_t magTask_attributes = {
   .stack_size = 500 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
+/* Definitions for offboardTask */
+osThreadId_t offboardTaskHandle;
+const osThreadAttr_t offboardTask_attributes = {
+  .name = "offboardTask",
+  .stack_size = 500 * 4,
+  .priority = (osPriority_t) osPriorityNormal2,
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -177,6 +184,7 @@ void GnssTask(void *argument);
 void UWBTask(void *argument);
 void IMUTask(void *argument);
 void MagTask(void *argument);
+void OffboardTask(void *argument);
 
 extern void MX_USB_DEVICE_Init(void);
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
@@ -263,6 +271,9 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of magTask */
   magTaskHandle = osThreadNew(MagTask, NULL, &magTask_attributes);
+
+  /* creation of offboardTask */
+  offboardTaskHandle = osThreadNew(OffboardTask, NULL, &offboardTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -384,7 +395,6 @@ void Loop200hzTask(void *argument)
 #else
 	  comm_callback();
 #endif
-	  comm_send_callback();
 	  adc_update();
   }
   /* USER CODE END Loop200hzTask */
@@ -487,7 +497,7 @@ void MavSendTask(void *argument)
   for(;;)
   {
 	  distribute_mavlink_data();
-	  comm_send_data();
+	  osDelay(100);
   }
   /* USER CODE END MavSendTask */
 }
@@ -649,6 +659,28 @@ void MagTask(void *argument)
   /* USER CODE END MagTask */
 }
 
+/* USER CODE BEGIN Header_OffboardTask */
+/**
+* @brief Function implementing the offboardTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_OffboardTask */
+void OffboardTask(void *argument)
+{
+  /* USER CODE BEGIN OffboardTask */
+	while(!initialed_task){
+		osDelay(1000);
+	}
+  /* Infinite loop */
+  for(;;)
+  {
+	  osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);//200hz
+	  comm_send_callback();
+  }
+  /* USER CODE END OffboardTask */
+}
+
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 /// Add new thread application below
@@ -693,6 +725,7 @@ void TIM_400HZ_Callback(void){
 }
 
 void TIM_200HZ_Callback(void){
+	osThreadFlagsSet(offboardTaskHandle,1);
 	osThreadFlagsSet(loop200hzTaskHandle,1);
 }
 

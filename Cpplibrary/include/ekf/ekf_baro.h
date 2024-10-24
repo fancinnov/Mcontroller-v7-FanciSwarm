@@ -21,6 +21,7 @@ public:
 	float get_vt(void){return vt_last;}
 	bool is_initialed(void){return initialed;}
 	void reset(void){
+		initialed_fusion=false;
 		initialed=false;
 	}
 
@@ -29,7 +30,7 @@ private:
 					0,     0.0016};//观测数据的方差
 	float _filt_alpha(float dt, float filt_hz);
 	float _alpha=0;
-	bool initialed=false;
+	bool initialed=false, initialed_fusion=false;
 	float delta_x=0, delta_v=0;
 	float T_baro=0.0025; //2.5ms
 	float G[2*2]={ 1, T_baro,

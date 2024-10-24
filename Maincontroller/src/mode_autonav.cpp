@@ -73,11 +73,14 @@ void mode_autonav(void){
 		ch7=-1.0f;
 	}
 
-	if(ch7<0.0f){//遥控器未连接
+	if(ch7<0.3f){//遥控器未连接或ROS控制
 		target_roll=0.0f;
 		target_pitch=0.0f;
 		target_yaw_rate=0.0f;
 		target_climb_rate=0.0f;
+		set_enable_odom(true);
+	}else if(ch7>=0.7&&ch7<=1.0){//姿态模式切断外接里程计
+		set_enable_odom(false);
 	}
 
 	// Alt Hold State Machine Determination
@@ -103,6 +106,7 @@ void mode_autonav(void){
 		}else{
 			robot_state_desired=STATE_NONE;
 		}
+		ekf_z_reset();
 		motors->set_desired_spool_state(Motors::DESIRED_SHUT_DOWN);
 		attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 		attitude->reset_rate_controller_I_terms();
@@ -156,7 +160,7 @@ void mode_autonav(void){
 		}
 
 		// get take-off adjusted pilot and takeoff climb rates
-		if(ch7<0.0f||target_climb_rate>-20.0f){
+		if(ch7<0.3f||target_climb_rate>-20.0f){
 			target_climb_rate=MAX(target_climb_rate, param->auto_takeoff_speed.value);//给一个初速度,大飞机30,小飞机50
 		}
 		get_takeoff_climb_rates(target_climb_rate, takeoff_climb_rate);
@@ -264,8 +268,17 @@ void mode_autonav(void){
 				pos_control->set_speed_xy(param->mission_vel_max.value);
 				pos_control->set_accel_xy(param->mission_accel_max.value);
 
-				if(is_equal(get_mav_ax_roll_target(), 0.0f)&&is_equal(get_mav_ay_pitch_target(), 0.0f)){
-					if(is_equal(get_mav_vx_target(), 0.0f)&&is_equal(get_mav_vy_target(), 0.0f)&&is_equal(get_mav_ax_target(), 0.0f)&&is_equal(get_mav_ay_target(), 0.0f)){
+				switch(get_coordinate_mode()){
+					case MAV_FRAME_BODY_NED:
+						pos_control->set_pilot_desired_acceleration(get_mav_ax_roll_target(), get_mav_ay_pitch_target(), target_yaw, _dt);
+						pos_control->calc_desired_velocity(_dt);
+						break;
+					case MAV_FRAME_VISION_NED:
+						pos_control->set_xy_target(get_mav_x_target(),get_mav_y_target());
+						pos_control->set_desired_velocity_xy(get_mav_vx_target(), get_mav_vy_target());
+						pos_control->set_desired_accel_xy(get_mav_ax_target(), get_mav_ay_target());
+						break;
+					case MAV_FRAME_GLOBAL:
 						if(!get_first_pos){
 							ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
 							ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
@@ -290,14 +303,8 @@ void mode_autonav(void){
 								reach_target_point=true;
 							}
 						}
-					}else{
-						pos_control->set_xy_target(get_mav_x_target(),get_mav_y_target());
-						pos_control->set_desired_velocity_xy(get_mav_vx_target(), get_mav_vy_target());
-						pos_control->set_desired_accel_xy(get_mav_ax_target(), get_mav_ay_target());
-					}
-				}else{
-					pos_control->set_pilot_desired_acceleration(get_mav_ax_roll_target(), get_mav_ay_pitch_target(), target_yaw, _dt);
-					pos_control->calc_desired_velocity(_dt);
+					default:
+						break;
 				}
 
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
@@ -305,10 +312,9 @@ void mode_autonav(void){
 				target_pitch=pos_control->get_pitch();
 				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
-				target_climb_rate=get_mav_vz_target();
 				relative_alt=get_mav_z_target();
 				if(relative_alt>=30.0f){
-					if(get_mav_z_target()<=200.0f&&rangefinder_state.alt_healthy){
+					if(relative_alt<=200.0f&&rangefinder_state.alt_healthy){
 						if(robot_state_desired!=STATE_LANDED&&!execute_land){
 							set_target_rangefinder_alt(relative_alt);
 						}
@@ -337,7 +343,7 @@ void mode_autonav(void){
 					landing=2;
 				}
 			}
-			if(landing>1&&rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<6.0f)){
+			if(landing>1&&rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<param->landing_lock_alt.value)){
 				disarm_motors();
 				landing=0;
 			}

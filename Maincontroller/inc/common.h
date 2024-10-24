@@ -208,6 +208,13 @@
 #define MISSION_ACCEL_MAX 100.0f	//1m/ss
 #define ALT_RETURN	100.0f			//1m
 #define AUTO_TAKEOFF_SPEED 50.0f	//50cm/s
+#define LANDING_LOCK_ALT 6.0f
+#define FLOW_GAIN_X 1.0f
+#define FLOW_GAIN_Y 1.0f
+#define FLOW_GAIN_Z 1.0f
+#define GNSS_OFFSET_X 0.0f
+#define GNSS_OFFSET_Y 0.0f
+#define GNSS_OFFSET_Z 0.0f
 #define VOLTAGE_GAIN 1.0f
 #define CURRENT_GAIN 1.0f
 #define UWB_YAW_DELTA_DEG 0.0f
@@ -241,6 +248,8 @@ bool get_thr_force_decrease(void);
 void set_thr_force_decrease(bool force_decrease);
 void compass_calibrate(void);
 bool get_force_autonav(void);
+void set_enable_odom(bool enable);
+uint8_t get_coordinate_mode(void);
 
 float log_pitch_rad(void);
 float log_roll_rad(void);
@@ -900,6 +909,24 @@ typedef struct{
 		dataflash_type type=FLOAT;
 		float value=0.0f;
 	}baro_temp_offset_gain;
+
+	struct landing_lock_alt{
+		uint16_t num=54;
+		dataflash_type type=FLOAT;
+		float value=LANDING_LOCK_ALT;
+	}landing_lock_alt;
+
+	struct flow_gain{
+		uint16_t num=55;
+		dataflash_type type=VECTOR3F;
+		Vector3f value={FLOW_GAIN_X, FLOW_GAIN_Y, FLOW_GAIN_Z};
+	}flow_gain;
+
+	struct gnss_offset{
+		uint16_t num=56;
+		dataflash_type type=VECTOR3F;
+		Vector3f value={GNSS_OFFSET_X, GNSS_OFFSET_Y, GNSS_OFFSET_Z};
+	}gnss_offset;
 
 	/* *************************************************
 	 * ****************Dev code begin*******************/
