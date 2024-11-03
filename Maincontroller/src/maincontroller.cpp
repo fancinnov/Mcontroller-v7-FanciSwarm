@@ -56,6 +56,7 @@ static bool use_uwb=false;
 static bool update_pos=false;
 static bool use_odom_z=false;
 static bool enable_odom=true;
+static bool odom_safe=true;
 
 static float accel_filt_hz=10;//HZ
 static float gyro_filt_hz=20;//HZ
@@ -1518,7 +1519,7 @@ void inline parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_mes
 				mavlink_msg_attitude_decode(msg_received, &attitude_mav);
 				yaw_map=wrap_PI(attitude_mav.yaw);  //rad 外部传入的偏航角必须z轴向下的弧度角,即NED或FRD坐标系
 				time_last_attitude=HAL_GetTick();
-				if(!USE_MAG&&enable_odom){
+				if(!USE_MAG&&enable_odom&&odom_safe){
 					get_mav_yaw=true;
 				}
 				break;
@@ -1533,8 +1534,8 @@ void inline parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_mes
 				if(!get_gnss_state()){
 					gps_position->alt=-local_position_ned_cov.z * 1000.0f; //mm
 				}
-//				usb_printf("odom:%f|%f|%f|%f\n",odom_3d.x,odom_3d.y,odom_3d.z,yaw_map*RAD_TO_DEG);
-				if(!USE_MAG&&enable_odom){
+				usb_printf("odom:%f|%f|%f|%f\n",odom_3d.x,odom_3d.y,odom_3d.z,yaw_map*RAD_TO_DEG);
+				if(!USE_MAG&&enable_odom&&odom_safe){
 					get_odom_xy=true;
 				}
 				break;
@@ -2937,19 +2938,17 @@ void ekf_gnss_xy(void){
 	if(!ahrs->is_initialed()||(!ahrs_healthy)){
 		return;
 	}
-	if(get_odom_xy){
-		float dt=(float)(HAL_GetTick()-odom_time)*0.001;
-		odom_time=HAL_GetTick();
+	if(get_odom_xy&&enable_odom&&odom_safe){
 		odom_2d=safe_sqrt((odom_3d.x-odom_2d_x_last)*(odom_3d.x-odom_2d_x_last)+(odom_3d.y-odom_2d_y_last)*(odom_3d.y-odom_2d_y_last));
-		if(odom_2d<100.0f&&odom_2d>0.0f){
-			ned_current_vel.x=(odom_3d.x-odom_2d_x_last)/dt;
-			ned_current_vel.y=(odom_3d.y-odom_2d_y_last)/dt;
+//		usb_printf("odom:%f|%d\n",odom_2d,odom_safe);
+		if(odom_2d<=50.0f&&odom_2d>0.0f){
 			ned_current_pos.x=odom_3d.x;
 			ned_current_pos.y=odom_3d.y;
-			odom_2d_x_last=odom_3d.x;
-			odom_2d_y_last=odom_3d.y;
 			get_odom_xy=false;
 			get_gnss_location=true;
+		}else if(odom_2d>50.0f&&get_soft_armed()){
+			odom_safe=false;
+			robot_state_desired=STATE_LANDED;
 		}
 		odom_2d_x_last=odom_3d.x;
 		odom_2d_y_last=odom_3d.y;
@@ -3496,7 +3495,7 @@ bool arm_motors(void)
 		return false;
 	}
 	//TODO: add other pre-arm check
-	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos){
+	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||!odom_safe){
 		Buzzer_set_ring_type(BUZZER_ERROR);
 		return false;//传感器异常，禁止电机启动
 	}
@@ -3559,7 +3558,7 @@ void unlock_motors(void){
 		return;
 	}
 	//TODO: add other pre-arm check
-	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos){
+	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||!odom_safe){
 		Buzzer_set_ring_type(BUZZER_ERROR);
 		return;//传感器异常，禁止电机启动
 	}
@@ -3864,7 +3863,7 @@ void Logger_Cat_Callback(void){
 			"barofilt", "alt_t", "pos_z", "vel_z_t", "vel_z", "rf_alt", "rf_alt_t", "rtk_alt", "rtk_velz");
 	osDelay(2);
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_POS_XY
-			"vt_z","tar_x", "ned_x", "ned_vx", "pos_x", "vel_x", "tar_y", "ned_y", "ned_vy", "pos_y", "vel_y");
+			"vt_z","uwb_x", "ned_x", "ned_vx", "pos_x", "vel_x", "uwb_y", "ned_y", "ned_vy", "pos_y", "vel_y");
 	osDelay(2);
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_VEL_PID_XYZ
 			"v_p_x", "v_i_x", "v_d_x", "v_p_y", "v_i_y", "v_d_y", "a_p_z", "a_i_z", "a_d_z");
@@ -3916,7 +3915,7 @@ void Logger_Data_Callback(void){
 			get_baroalt_filt(), pos_control->get_pos_target().z, get_pos_z(), pos_control->get_vel_target_z(), get_vel_z(), get_rangefinder_alt(), get_rangefinder_alt_target(), -get_ned_pos_z(), -get_ned_vel_z());
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_POS_XY
-			ekf_baro->get_vt(), get_mav_x_target(), get_ned_pos_x(), get_ned_vel_x(), get_pos_x(), get_vel_x(), get_mav_y_target(), get_ned_pos_y(), get_ned_vel_y(), get_pos_y(), get_vel_y());
+			ekf_baro->get_vt(), get_uwb_x(), get_ned_pos_x(), get_ned_vel_x(), get_pos_x(), get_vel_x(), get_uwb_y(), get_ned_pos_y(), get_ned_vel_y(), get_pos_y(), get_vel_y());
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_VEL_PID_XYZ
 			pos_control->get_vel_xy_pid().get_p().x, pos_control->get_vel_xy_pid().get_integrator().x, pos_control->get_vel_xy_pid().get_d().x,

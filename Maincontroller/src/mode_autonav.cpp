@@ -218,12 +218,12 @@ void mode_autonav(void){
 		motors->set_desired_spool_state(Motors::DESIRED_THROTTLE_UNLIMITED);
 
 		// call attitude controller
-		if((use_gcs&&!get_gcs_connected())||(use_rc&&!rc_channels_healthy())){
+		if((use_gcs&&!get_gcs_connected())||(use_rc&&!rc_channels_healthy())||robot_state_desired==STATE_LANDED){
 			robot_state_desired=STATE_LANDED;
 			target_roll=0.0f;
 			target_pitch=0.0f;
 			target_yaw_rate=0.0f;
-			ch7=0.5;//强制在位置模式下降落
+			ch7=constrain_float(ch7, 0.5, 0.9);//强制在位置模式下降落
 		}
 
 		if((HAL_GetTick()-takeoff_time)<10000){//起飞10s内禁止glitch
@@ -303,6 +303,7 @@ void mode_autonav(void){
 								reach_target_point=true;
 							}
 						}
+						break;
 					default:
 						break;
 				}

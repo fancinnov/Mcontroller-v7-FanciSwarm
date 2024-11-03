@@ -146,7 +146,7 @@
  # define PILOT_VELZ_DOWN_MAX              30.0f         // maximum vertical velocity down in cm/s
 #endif
 #ifndef AUTO_LAND_SPEED
- # define AUTO_LAND_SPEED              25.0f         // maximum vertical velocity down in cm/s
+ # define AUTO_LAND_SPEED              30.0f         // maximum vertical velocity down in cm/s
 #endif
 #ifndef PILOT_ACCEL_Z_DEFAULT
  # define PILOT_ACCEL_Z_DEFAULT        100.0f         // vertical acceleration in cm/s/s while altitude is under pilot control
