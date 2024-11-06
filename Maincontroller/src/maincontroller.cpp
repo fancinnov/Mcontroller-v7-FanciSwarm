@@ -540,7 +540,7 @@ void opticalflow_update(void){
 		flow_sample_flag=flow_sample_num;
 	}
 //	usb_printf_dir("$%d %d;",(int16_t)flow_vel.y, (int16_t)flow_vel_sample[flow_sample_flag%10].y);
-	if(!get_gnss_state()){
+	if(!get_gnss_state()||!USE_MAG){
 		get_gnss_location=true;
 		ned_current_vel.x=opticalflow_state.vel.x;
 		ned_current_vel.y=opticalflow_state.vel.y;
@@ -1787,63 +1787,65 @@ void send_mavlink_data(mavlink_channel_t chan)
 		}
 	}
 
-	//加速度计校准
-	if(!accel_cal_succeed){
-		accel_cali_num=0;
-		command_long.command=MAV_CMD_PREFLIGHT_CALIBRATION;
-		command_long.param1=1.0f;
-		command_long.param2=(float)accelCalibrator->get_num_samples_collected()+1;
-		mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
-		mavlink_send_buffer(chan, &msg_command_long);
-	}else{
-		if((accelCalibrator->get_num_samples_collected()==ACCELCAL_VEHICLE_POS_BACK)&&(accel_cali_num<50)){
+	if(chan==gcs_channel){
+		//加速度计校准
+		if(!accel_cal_succeed){
+			accel_cali_num=0;
 			command_long.command=MAV_CMD_PREFLIGHT_CALIBRATION;
 			command_long.param1=1.0f;
 			command_long.param2=(float)accelCalibrator->get_num_samples_collected()+1;
 			mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
 			mavlink_send_buffer(chan, &msg_command_long);
-			accel_cali_num++;
+		}else{
+			if((accelCalibrator->get_num_samples_collected()==ACCELCAL_VEHICLE_POS_BACK)&&(accel_cali_num<50)){
+				command_long.command=MAV_CMD_PREFLIGHT_CALIBRATION;
+				command_long.param1=1.0f;
+				command_long.param2=(float)accelCalibrator->get_num_samples_collected()+1;
+				mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+				mavlink_send_buffer(chan, &msg_command_long);
+				accel_cali_num++;
+			}
 		}
-	}
 
-	//罗盘校准
-	if(mag_correcting){
-		command_long.command=MAV_CMD_PREFLIGHT_CALIBRATION;
-		command_long.param1=2.0f;
-		command_long.param2=completion_percent;
-		mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
-		mavlink_send_buffer(chan, &msg_command_long);
-	}else{
-		if(compass_cal_succeed){
+		//罗盘校准
+		if(mag_correcting){
 			command_long.command=MAV_CMD_PREFLIGHT_CALIBRATION;
 			command_long.param1=2.0f;
-			command_long.param2=2.0f;
+			command_long.param2=completion_percent;
 			mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
 			mavlink_send_buffer(chan, &msg_command_long);
-			compass_cal_succeed=false;
+		}else{
+			if(compass_cal_succeed){
+				command_long.command=MAV_CMD_PREFLIGHT_CALIBRATION;
+				command_long.param1=2.0f;
+				command_long.param2=2.0f;
+				mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+				mavlink_send_buffer(chan, &msg_command_long);
+				compass_cal_succeed=false;
+			}
 		}
-	}
 
-	//电脑端地面站需要显示遥控信号
-	if((chan==gcs_channel)&&rc_channels_sendback){
-		rc_channels_t.chan1_raw=input_channel_roll();
-		rc_channels_t.chan2_raw=input_channel_pitch();
-		rc_channels_t.chan3_raw=input_channel_throttle();
-		rc_channels_t.chan4_raw=input_channel_yaw();
-		rc_channels_t.chan5_raw=input_channel_5();
-		rc_channels_t.chan6_raw=input_channel_6();
-		rc_channels_t.chan7_raw=input_channel_7();
-		rc_channels_t.chan8_raw=input_channel_8();
-		rc_channels_t.chan9_raw=input_channel_9();
-		rc_channels_t.chan10_raw=input_channel_10();
-		rc_channels_t.chan11_raw=input_channel_11();
-		rc_channels_t.chan12_raw=input_channel_12();
-		rc_channels_t.chan13_raw=input_channel_13();
-		rc_channels_t.chan14_raw=input_channel_14();
-		rc_channels_t.chancount=RC_INPUT_CHANNELS;
-		rc_channels_t.rssi=254;
-		mavlink_msg_rc_channels_encode(mavlink_system.sysid, mavlink_system.compid, &msg_rc_channels, &rc_channels_t);
-		mavlink_send_buffer(chan, &msg_rc_channels);
+		//电脑端地面站需要显示遥控信号
+		if(rc_channels_sendback){
+			rc_channels_t.chan1_raw=input_channel_roll();
+			rc_channels_t.chan2_raw=input_channel_pitch();
+			rc_channels_t.chan3_raw=input_channel_throttle();
+			rc_channels_t.chan4_raw=input_channel_yaw();
+			rc_channels_t.chan5_raw=input_channel_5();
+			rc_channels_t.chan6_raw=input_channel_6();
+			rc_channels_t.chan7_raw=input_channel_7();
+			rc_channels_t.chan8_raw=input_channel_8();
+			rc_channels_t.chan9_raw=input_channel_9();
+			rc_channels_t.chan10_raw=input_channel_10();
+			rc_channels_t.chan11_raw=input_channel_11();
+			rc_channels_t.chan12_raw=input_channel_12();
+			rc_channels_t.chan13_raw=input_channel_13();
+			rc_channels_t.chan14_raw=input_channel_14();
+			rc_channels_t.chancount=RC_INPUT_CHANNELS;
+			rc_channels_t.rssi=254;
+			mavlink_msg_rc_channels_encode(mavlink_system.sysid, mavlink_system.compid, &msg_rc_channels, &rc_channels_t);
+			mavlink_send_buffer(chan, &msg_rc_channels);
+		}
 	}
 }
 
@@ -2750,11 +2752,6 @@ void update_baro_alt(void){
 		}
 		return;
 	}
-	if(abs(motors->get_throttle()-motors->get_throttle_hover())<0.05){
-		baro_offset=motors->get_throttle_hover()*baro_offset_gain;
-	}else{
-		baro_offset=0.9*baro_offset+0.1*motors->get_throttle()*baro_offset_gain;
-	}
 
 	float baro_alt=(spl06_data.baro_alt-baro_offset)*100.0f;//螺旋桨气流引起气压偏置
 	if(isnan(baro_alt) || isinf(baro_alt)){
@@ -2808,7 +2805,7 @@ static uint8_t yaw_gnss_flag=0;
 static uint32_t gnss_last_update_time=0;
 static Vector2f gnss_sample_2d, ned_sample_2d_last;
 static uint8_t gnss_stabilize=0;
-static Vector3f gnss_gyro_offset;
+static Vector3f gnss_gyro_offset, ned_pos, ned_vel;
 bool get_gnss_stabilize(void){
 	return gnss_stabilize==10;
 }
@@ -2854,18 +2851,25 @@ void gnss_update(void){
 		gnss_current_pos.lat=gps_position->lat;//纬度:deg*1e-7
 		gnss_current_pos.lng=gps_position->lon;//经度:deg*1e-7
 		gnss_current_pos.alt=gps_position->alt/10;   //cm
-		ned_current_pos=location_3d_diff_NED(gnss_origin_pos, gnss_current_pos)*100;//cm
-		ned_current_vel.x=gps_position->vel_n_m_s*100+constrain_float(gnss_gyro_offset.y*param->gnss_offset.value.x, -100.0f, 100.0f);//cm
-		ned_current_vel.y=gps_position->vel_e_m_s*100-constrain_float(gnss_gyro_offset.x*param->gnss_offset.value.y, -100.0f, 100.0f);//cm
-		ned_current_vel.z=gps_position->vel_d_m_s*100+constrain_float(gnss_gyro_offset.z*param->gnss_offset.value.z, -100.0f, 100.0f);//cm
+		ned_pos=location_3d_diff_NED(gnss_origin_pos, gnss_current_pos)*100;//cm
+		ned_vel.x=gps_position->vel_n_m_s*100+constrain_float(gnss_gyro_offset.y*param->gnss_offset.value.x, -100.0f, 100.0f);//cm
+		ned_vel.y=gps_position->vel_e_m_s*100-constrain_float(gnss_gyro_offset.x*param->gnss_offset.value.y, -100.0f, 100.0f);//cm
+		ned_vel.z=gps_position->vel_d_m_s*100+constrain_float(gnss_gyro_offset.z*param->gnss_offset.value.z, -100.0f, 100.0f);//cm
 //		usb_printf_dir("$%d %d;", (int16_t)(ned_current_vel.x), (int16_t)(-gnss_gyro_offset.y*3));
 //		usb_printf_dir("$%d %d;", (int16_t)(ned_current_vel.y), (int16_t)(gnss_gyro_offset.x*25));
 //		usb_printf_dir("$%d %d;", (int16_t)(ned_current_vel.x),(int16_t)(ned_current_vel.y));
+		if(USE_MAG){
+			ned_current_pos=ned_pos;
+			ned_current_vel=ned_vel;
+		}else{
+			ned_current_pos.z=ned_pos.z;
+			ned_current_vel.z=ned_vel.z;
+		}
 		//机体坐标系->大地坐标系
 		gnss_gyro_offset.x=gyro_filt.x*ahrs_cos_yaw()-gyro_filt.y*ahrs_sin_yaw();
 		gnss_gyro_offset.y=gyro_filt.x*ahrs_sin_yaw()+gyro_filt.y*ahrs_cos_yaw();
 		gnss_gyro_offset.z=gyro_filt.z;
-		if(safe_sqrt(ned_current_vel.x*ned_current_vel.x+ned_current_vel.y*ned_current_vel.y)<5.0f){
+		if(safe_sqrt(ned_vel.x*ned_vel.x+ned_vel.y*ned_vel.y)<5.0f){
 			gnss_stabilize++;
 		}else{
 			gnss_stabilize=0;
@@ -2938,7 +2942,7 @@ void ekf_gnss_xy(void){
 	if(!ahrs->is_initialed()||(!ahrs_healthy)){
 		return;
 	}
-	if(get_odom_xy&&enable_odom&&odom_safe){
+	if(get_odom_xy&&enable_odom&&odom_safe&&!USE_MAG){
 		odom_2d=safe_sqrt((odom_3d.x-odom_2d_x_last)*(odom_3d.x-odom_2d_x_last)+(odom_3d.y-odom_2d_y_last)*(odom_3d.y-odom_2d_y_last));
 //		usb_printf("odom:%f|%d\n",odom_2d,odom_safe);
 		if(odom_2d<=50.0f&&odom_2d>0.0f){
@@ -3874,8 +3878,8 @@ void Logger_Cat_Callback(void){
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s ",//OFFBOARD
 			"odom_x", "odom_y", "odom_z", "mav_x_t", "mav_y_t", "mav_z_t", "goal_x", "goal_y", "goal_z");
 	osDelay(2);
-	sd_log_write("%8s %8s %8s %8s ",//LOG_ANCHOR
-			"dis1", "dis2", "dis3", "dis4");
+	sd_log_write("%8s %8s %8s %8s %8s %8s ",//LOG_ANCHOR
+			"dis1", "dis2", "dis3", "dis4", "lat", "lon");
 	osDelay(2);
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_RCOUT
 			"motor1", "motor2", "motor3", "motor4", "motor5", "motor6", "motor7", "motor8");
@@ -3928,8 +3932,8 @@ void Logger_Data_Callback(void){
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//OFFBOARD
 			get_odom_x(), get_odom_y(), get_odom_z(), get_mav_x_target(), get_mav_y_target(), get_mav_z_target(), set_goal_point.x, set_goal_point.y, set_goal_point.z);
 	osDelay(2);
-	sd_log_write("%8d %8d %8d %8d ",//LOG_ANCHOR
-			uwb->Anchordistance[0], uwb->Anchordistance[1], uwb->Anchordistance[2], uwb->Anchordistance[3]);
+	sd_log_write("%8d %8d %8d %8d %8ld %8ld ",//LOG_ANCHOR
+			uwb->Anchordistance[0], uwb->Anchordistance[1], uwb->Anchordistance[2], uwb->Anchordistance[3], gps_position->lat, gps_position->lon);
 	osDelay(2);
 	sd_log_write("%8d %8d %8d %8d %8d %8d %8d %8d ",//LOG_RCOUT
 			pwm_channel.motor[0], pwm_channel.motor[1], pwm_channel.motor[2], pwm_channel.motor[3], pwm_channel.motor[4], pwm_channel.motor[5], pwm_channel.motor[6], pwm_channel.motor[7]);
