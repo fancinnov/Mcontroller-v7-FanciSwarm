@@ -493,7 +493,7 @@ void opticalflow_update(void){
 	}else{
 		flow_alt=get_pos_z()-takeoff_alt;//cm
 	}
-	flow_alt=constrain_float(flow_alt, 20.0f, 150.0f);
+	flow_alt=constrain_float(flow_alt, 3.0f, 150.0f);
 	if(lc302_data.quality==245){
 		opticalflow_state.healthy=true;
 		get_opticalflow=true;
@@ -509,7 +509,7 @@ void opticalflow_update(void){
 	//光流坐标系->机体坐标系//TODO:add gyro offset
 	flow_bf_x=(float)lc302_data.flow_y_integral*0.0001f+constrain_float(flow_gyro_offset.y*flow_gain_x*param->flow_gain.value.x, -0.2, 0.2);
 	flow_bf_y=-(float)lc302_data.flow_x_integral*0.0001f+constrain_float(flow_gyro_offset.x*flow_gain_y*param->flow_gain.value.y, -0.2, 0.2)+constrain_float(flow_gain_z*flow_gyro_offset.z*param->flow_gain.value.z, -0.2, 0.2);
-//	usb_printf_dir("$%d %d;", lc302_data.flow_x_integral, (int16_t)(constrain_float(flow_gyro_offset.x*flow_gain_y, -0.2, 0.2)*10000));
+//	usb_printf_dir("$%d %d;", lc302_data.flow_x_integral, (int16_t)(constrain_float(flow_gyro_offset.x*flow_gain_y*param->flow_gain.value.y, -0.2, 0.2)*10000));
 	//机体坐标系->大地坐标系
 	opticalflow_state.rads.x=flow_bf_x*ahrs_cos_yaw()-flow_bf_y*ahrs_sin_yaw();
 	opticalflow_state.rads.y=flow_bf_x*ahrs_sin_yaw()+flow_bf_y*ahrs_cos_yaw();
@@ -598,7 +598,7 @@ static mavlink_battery_status_t battery_status;
 static mavlink_rc_channels_t rc_channels_t;
 static mavlink_timesync_t system_version;
 
-void inline parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t* msg_received, mavlink_status_t* status){
+void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t* msg_received, mavlink_status_t* status){
 	if (mavlink_parse_char(chan, data, msg_received, status)){
 		switch (msg_received->msgid) {
 			case MAVLINK_MSG_ID_HEARTBEAT:
@@ -1723,9 +1723,6 @@ void send_mavlink_data(mavlink_channel_t chan)
 				offboard_connected=false;
 				offboard_channel=255;
 			}
-		}else if(chan==offboard_channel){
-			offboard_connected=false;
-			offboard_channel=255;
 		}
 		return;
 	}
@@ -2821,14 +2818,14 @@ void gnss_update(void){
 		gnss_last_update_time=get_gnss_update_ms();
 	}
 	if(get_gnss_state()){
-		if(!initial_gnss){
+		if(!initial_gnss&&USE_MAG){
 			gnss_origin_pos.lat=gps_position->lat;//纬度:deg*1e-7
 			gnss_origin_pos.lng=gps_position->lon;//经度:deg*1e-7
 			gnss_origin_pos.alt=gps_position->alt/10;//海拔：cm
 			ahrs->set_declination(radians(Declination::get_declination((float)gnss_origin_pos.lat*1e-7, (float)gnss_origin_pos.lng*1e-7)));
 			initial_gnss=true;
 		}
-		if(gps_position->heading_status==4){
+		if(gps_position->heading_status==4&&USE_MAG){
 			if(yaw_gnss_flag>=20){
 				yaw_gnss_offset=wrap_PI(gps_position->heading*DEG_TO_RAD-yaw_rad);
 				if(fabsf(yaw_gnss_offset)>M_PI_2){
@@ -2847,7 +2844,6 @@ void gnss_update(void){
 		sTime.Seconds=gps_position->sec;
 		HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
 		HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
-		get_gnss_location=true;
 		gnss_current_pos.lat=gps_position->lat;//纬度:deg*1e-7
 		gnss_current_pos.lng=gps_position->lon;//经度:deg*1e-7
 		gnss_current_pos.alt=gps_position->alt/10;   //cm
@@ -2861,6 +2857,7 @@ void gnss_update(void){
 		if(USE_MAG){
 			ned_current_pos=ned_pos;
 			ned_current_vel=ned_vel;
+			get_gnss_location=true;
 		}else{
 			ned_current_pos.z=ned_pos.z;
 			ned_current_vel.z=ned_vel.z;

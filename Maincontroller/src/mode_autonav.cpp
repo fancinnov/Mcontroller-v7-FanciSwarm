@@ -78,9 +78,6 @@ void mode_autonav(void){
 		target_pitch=0.0f;
 		target_yaw_rate=0.0f;
 		target_climb_rate=0.0f;
-		set_enable_odom(true);
-	}else if(ch7>=0.7&&ch7<=1.0){//姿态模式切断外接里程计
-		set_enable_odom(false);
 	}
 
 	// Alt Hold State Machine Determination
@@ -106,7 +103,9 @@ void mode_autonav(void){
 		}else{
 			robot_state_desired=STATE_NONE;
 		}
-		ekf_z_reset();
+		if(!motors->get_interlock()){
+			ekf_z_reset();
+		}
 		motors->set_desired_spool_state(Motors::DESIRED_SHUT_DOWN);
 		attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 		attitude->reset_rate_controller_I_terms();

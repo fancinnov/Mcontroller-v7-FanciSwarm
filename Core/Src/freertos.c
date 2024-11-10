@@ -554,9 +554,6 @@ void GnssTask(void *argument)
 	while(!initialed_task){
 		osDelay(1000);
 	}
-#if !USE_GNSS
-	osThreadTerminate(gnssTaskHandle);
-#endif
 	if(COMM_1==GPS_COMM){
 		set_gnss_comm(gnss_comm1);
 	}else if(COMM_2==GPS_COMM){
