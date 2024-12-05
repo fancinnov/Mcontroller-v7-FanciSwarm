@@ -273,6 +273,8 @@ void update_dataflash(void){
 		dataflash->set_param_float(param->landing_lock_alt.num, param->landing_lock_alt.value);
 		dataflash->set_param_vector3f(param->flow_gain.num, param->flow_gain.value);
 		dataflash->set_param_vector3f(param->gnss_offset.num, param->gnss_offset.value);
+		dataflash->set_param_vector3f(param->mag_diagonals.num, param->mag_diagonals.value);
+		dataflash->set_param_vector3f(param->mag_offdiagonals.num, param->mag_offdiagonals.value);
 
 		/* *************************************************
 		* ****************Dev code begin*******************/
@@ -346,6 +348,8 @@ void update_dataflash(void){
 		dataflash->get_param_float(param->landing_lock_alt.num, param->landing_lock_alt.value);
 		dataflash->get_param_vector3f(param->flow_gain.num, param->flow_gain.value);
 		dataflash->get_param_vector3f(param->gnss_offset.num, param->gnss_offset.value);
+		dataflash->get_param_vector3f(param->mag_diagonals.num, param->mag_diagonals.value);
+		dataflash->get_param_vector3f(param->mag_offdiagonals.num, param->mag_offdiagonals.value);
 
 		/* *************************************************
 		 * ****************Dev code begin*******************/
@@ -377,7 +381,6 @@ static bool use_tfmini=false, force_vl53lxx=false;
 void get_tfmini_data(uint8_t buf)
 {
 	if(!use_rangefinder){
-		rangefinder_state.enabled=false;
 		rangefinder_state.alt_healthy=false;
 		return;
 	}
@@ -442,7 +445,6 @@ void get_tfmini_data(uint8_t buf)
 static Vector3f vl53lxx_offset=Vector3f(0.0f, 0.0f, 0.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
 void get_vl53lxx_data(uint16_t distance_mm){
 	if(!use_rangefinder){
-		rangefinder_state.enabled=false;
 		rangefinder_state.alt_healthy=false;
 		return;
 	}
@@ -745,6 +747,8 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 							mag_corrected=false;
 							ahrs->reset();
 							param->mag_offsets.value={0.0f,0.0f,0.0f};
+							param->mag_diagonals.value={1.0f,1.0f,1.0f};
+							param->mag_offdiagonals.value={0.0f,0.0f,0.0f};
 						}else if(is_equal(cmd.param1,3.0f)){            //校准水平
 							horizon_correct=true;
 							reset_horizon_integrator=true;
@@ -2581,7 +2585,6 @@ bool gyro_calibrate(void){
 }
 
 static uint16_t clear_mag_correct_delta=0;
-static float mag_2d_len=0.0f;
 static Vector3f mag_orin, mag_curr, mag_offset;
 static float c_last=0.0f,c_gain=1.0f;
 void update_mag_data(void){
@@ -2596,7 +2599,11 @@ void update_mag_data(void){
 
 	mag.rotate(ROTATION_YAW_270);
 
-	mag_correct=mag+param->mag_offsets.value;
+	Matrix3f mag_softiron{param->mag_diagonals.value.x,     param->mag_offdiagonals.value.x,  param->mag_offdiagonals.value.y,
+						  param->mag_offdiagonals.value.x,  param->mag_diagonals.value.y,     param->mag_offdiagonals.value.z,
+						  param->mag_offdiagonals.value.y,  param->mag_offdiagonals.value.z,  param->mag_diagonals.value.z};
+	mag_correct=mag_softiron*(mag+param->mag_offsets.value);
+//	usb_printf("mag:%f|%f|%f|%f|%f|%f\n",param->mag_diagonals.value.x,param->mag_diagonals.value.y,param->mag_diagonals.value.z,param->mag_offdiagonals.value.x,param->mag_offdiagonals.value.y,param->mag_offdiagonals.value.z);
 
 	if(is_equal(param->mag_offsets.value.x,0.0f)||is_equal(param->mag_offsets.value.y,0.0f)||is_equal(param->mag_offsets.value.z,0.0f)){
 		return;
@@ -2621,12 +2628,10 @@ void update_mag_data(void){
 				mag_corrected=false;
 				if(clear_mag_correct_delta<=200){//电流磁偏
 					c_last+=get_batt_current()*0.005;
-					mag_2d_len=safe_sqrt(mag_orin.x*mag_orin.x+mag_orin.y*mag_orin.y);
-					mag_curr.x=mag_2d_len*cos(yaw_rad);
-					mag_curr.y=-mag_2d_len*sin(yaw_rad);
+					mag_curr=dcm_matrix.transposed()*mag_orin;
 					mag_offset.x+=(mag_filt.x-mag_curr.x)*0.005;
 					mag_offset.y+=(mag_filt.y-mag_curr.y)*0.005;
-					mag_offset.z+=(mag_filt.z-mag_orin.z)*0.005;
+					mag_offset.z+=(mag_filt.z-mag_curr.z)*0.005;
 					if(clear_mag_correct_delta==1){
 						mag_correct-=mag_offset;
 						_mag_filter.reset(mag_correct);
@@ -2643,7 +2648,7 @@ void update_mag_data(void){
 				mag_correct-=mag_offset*c_gain;
 			}
 		}else{
-			mag_orin=mag_filt;
+			mag_orin=dcm_matrix*mag_filt;
 			mag_corrected=true;
 		}
 		mag_filt = _mag_filter.apply(mag_correct);
@@ -2666,8 +2671,10 @@ void compass_calibrate(void){
 	compassCalibrator->update(calibrate_failure);
 	completion_percent=compassCalibrator->get_completion_percent()/100.0f;
 	if(is_equal(completion_percent,1.0f)){
-		compassCalibrator->get_calibration(param->mag_offsets.value);
+		compassCalibrator->get_calibration(param->mag_offsets.value, param->mag_diagonals.value, param->mag_offdiagonals.value);
 		dataflash->set_param_vector3f(param->mag_offsets.num, param->mag_offsets.value);
+		dataflash->set_param_vector3f(param->mag_diagonals.num, param->mag_diagonals.value);
+		dataflash->set_param_vector3f(param->mag_offdiagonals.num, param->mag_offdiagonals.value);
 		compass_cal_succeed=true;
 		mag_correcting=false;
 		usb_printf("compass calibrate succeed!\n");
@@ -2866,7 +2873,7 @@ void gnss_update(void){
 		gnss_gyro_offset.x=gyro_filt.x*ahrs_cos_yaw()-gyro_filt.y*ahrs_sin_yaw();
 		gnss_gyro_offset.y=gyro_filt.x*ahrs_sin_yaw()+gyro_filt.y*ahrs_cos_yaw();
 		gnss_gyro_offset.z=gyro_filt.z;
-		if(safe_sqrt(ned_vel.x*ned_vel.x+ned_vel.y*ned_vel.y)<5.0f){
+		if(safe_sqrt(ned_vel.x*ned_vel.x+ned_vel.y*ned_vel.y)<10.0f&&gps_position->alt_noise<10.0f){
 			gnss_stabilize++;
 		}else{
 			gnss_stabilize=0;

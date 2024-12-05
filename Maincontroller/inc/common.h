@@ -928,6 +928,24 @@ typedef struct{
 		Vector3f value={GNSS_OFFSET_X, GNSS_OFFSET_Y, GNSS_OFFSET_Z};
 	}gnss_offset;
 
+	// @DisplayName: mag_diagonals
+	// @Units: mss
+	// @Range: 1.0
+	struct mag_diagonals{
+		uint16_t num=57;
+		dataflash_type type=VECTOR3F;
+		Vector3f value={1.0f,1.0f,1.0f};
+	}mag_diagonals;
+
+	// @DisplayName: accel_offdiagonals
+	// @Units: mss
+	// @Range: 0 1.0
+	struct mag_offdiagonals{
+		uint16_t num=58;
+		dataflash_type type=VECTOR3F;
+		Vector3f value;
+	}mag_offdiagonals;
+
 	/* *************************************************
 	 * ****************Dev code begin*******************/
 	// Warning! Developer can add your new code here!

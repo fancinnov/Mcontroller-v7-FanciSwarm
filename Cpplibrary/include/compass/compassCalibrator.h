@@ -17,7 +17,7 @@
 #define COMPASS_CAL_NUM_SAMPLES 300
 
 //RMS tolerance
-#define COMPASS_CAL_DEFAULT_TOLERANCE 15.0f
+#define COMPASS_CAL_DEFAULT_TOLERANCE 20.0f
 
 #ifndef COMPASS_OFFSETS_MAX_DEFAULT
 #define COMPASS_OFFSETS_MAX_DEFAULT 950
@@ -61,7 +61,7 @@ public:
 
     void set_tolerance(float tolerance) { _tolerance = tolerance; }
 
-    void get_calibration(Vector3f &offsets);
+    void get_calibration(Vector3f &offsets, Vector3f &diag, Vector3f &offdiag);
     enum Rotation get_orientation(void) { return _orientation; }
     enum Rotation get_original_orientation(void) { return _orig_orientation; }
 
