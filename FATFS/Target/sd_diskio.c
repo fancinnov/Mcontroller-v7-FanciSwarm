@@ -272,7 +272,7 @@ DRESULT SD_read(BYTE lun, BYTE *buff, DWORD sector, UINT count)
   }
 
 #if defined(ENABLE_SCRATCH_BUFFER)
-  if (!((uint32_t)buff & 0x1f))
+  if (!((uint32_t)buff & 0x3))
   {
 #endif
     /* Fast path cause destination buffer is correctly aligned */

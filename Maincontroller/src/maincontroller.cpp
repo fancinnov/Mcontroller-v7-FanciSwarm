@@ -3503,7 +3503,7 @@ bool arm_motors(void)
 		return false;
 	}
 	//TODO: add other pre-arm check
-	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||!odom_safe){
+	if (!ahrs_healthy||!initial_baro||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||!odom_safe){
 		Buzzer_set_ring_type(BUZZER_ERROR);
 		return false;//传感器异常，禁止电机启动
 	}
@@ -3566,7 +3566,7 @@ void unlock_motors(void){
 		return;
 	}
 	//TODO: add other pre-arm check
-	if (!ahrs_healthy||is_equal(get_pos_z(),0.0f)||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||!odom_safe){
+	if (!ahrs_healthy||!initial_baro||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||!odom_safe){
 		Buzzer_set_ring_type(BUZZER_ERROR);
 		return;//传感器异常，禁止电机启动
 	}
