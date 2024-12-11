@@ -2739,7 +2739,7 @@ void ahrs_update(void){
 
 static float baro_alt_filt=0,baro_alt_init=0,baro_alt_correct=0;
 static uint16_t init_baro=0;
-static float baro_offset=0.0f, baro_offset_gain=2.0f;
+static float baro_offset=0.0f, baro_offset_gain=1.5f;
 void update_baro_alt(void){
 	if(init_baro<20){//前20点不要
 		init_baro++;
@@ -2757,6 +2757,11 @@ void update_baro_alt(void){
 		return;
 	}
 
+	if(robot_state==STATE_TAKEOFF&&!get_gnss_state()){
+		baro_offset=motors->get_throttle()*baro_offset_gain;
+	}else{
+		baro_offset=0;
+	}
 	float baro_alt=(spl06_data.baro_alt-baro_offset)*100.0f;//螺旋桨气流引起气压偏置
 	if(isnan(baro_alt) || isinf(baro_alt)){
 		return;
