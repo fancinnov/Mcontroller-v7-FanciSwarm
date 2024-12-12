@@ -90,6 +90,7 @@ static Matrix3f dcm_matrix, dcm_matrix_correct;										//旋转矩阵
 static LowPassFilter2pVector3f	_accel_filter, _gyro_filter, _accel_ef_filter;
 static LowPassFilterFloat _baro_alt_filter;
 static LowPassFilterVector3f _mag_filter, _uwb_pos_filter, _flow_gyro_filter;
+static Logger_Status m_Logger_Status= Logger_Idle;
 
 parameter *param=new parameter();
 ap_t *ap=new ap_t();
@@ -105,7 +106,6 @@ PosControl *pos_control=new PosControl(*motors, *attitude);
 CompassCalibrator *compassCalibrator=new CompassCalibrator();
 AccelCalibrator *accelCalibrator=new AccelCalibrator();
 DataFlash *dataflash=new DataFlash();
-SDLog *sdlog=new SDLog();
 UWB *uwb=new UWB();
 Rangefinder_state rangefinder_state;
 Opticalflow_state opticalflow_state;
@@ -670,7 +670,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 					if(gnss_point_statis==mission_count.count){//如果统计航点数=航点总数，表示全部航点已被接收
 						//航点总数
 						gnss_point_num=mission_count.count;
-						sdlog->Logger_Write_Gnss();
+						Logger_Write_Gnss();
 					}
 					gnss_point_statis=0;
 				}
@@ -684,13 +684,13 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				send_mavlink_mission_list(chan);
 				break;
 			case MAVLINK_MSG_ID_LOG_ENTRY:
-				if(sdlog->m_Logger_Status==SDLog::Logger_Idle){
+				if(m_Logger_Status==Logger_Idle){
 					sd_get_file_name(chan);
 				}
 				break;
 			case MAVLINK_MSG_ID_LOG_REQUEST_DATA:
 				mavlink_msg_log_request_data_decode(msg_received, &log_request_data);
-				if(sdlog->m_Logger_Status==SDLog::Logger_Idle){
+				if(m_Logger_Status==Logger_Idle){
 					sd_send_log_file(chan, log_request_data.id-1);
 				}
 				break;
@@ -1601,15 +1601,15 @@ void send_mavlink_heartbeat_data(void){
 	}
 	if(get_soft_armed()){
 		heartbeat_send.base_mode|=MAV_MODE_FLAG_SAFETY_ARMED;
-		if(sdlog->m_Logger_Status==SDLog::Logger_Idle){
-			sdlog->Logger_Enable();
+		if(m_Logger_Status==Logger_Idle){
+			Logger_Enable();
 		}
 	}else{
-		if(sdlog->m_Logger_Status==SDLog::Logger_Record){
-			sdlog->Logger_Disable();
+		if(m_Logger_Status==Logger_Record){
+			Logger_Disable();
 		}
 	}
-	if(sdlog->m_Logger_Status==SDLog::Logger_Record){
+	if(m_Logger_Status==Logger_Record){
 		heartbeat_send.base_mode|=MAV_MODE_FLAG_HIL_ENABLED;
 	}
 	if(get_gnss_state()){
@@ -2361,7 +2361,7 @@ void pos_init(void){
 	pos_control->set_dt(_dt);
 	pos_control->init_xy_controller(true);
 	pos_control->set_lean_angle_max_d(param->angle_max.value);
-	sdlog->Logger_Read_Gnss();
+	Logger_Read_Gnss();
 	rangefinder_state.alt_cm_filt.set_cutoff_frequency(rangefinder_filt_hz);//tfmini默认频率100hz
 	_uwb_pos_filter.set_cutoff_frequency(uwb_pos_filt_hz);
 	Baro_set_temp_offset_gain(param->baro_temp_offset_gain.value);
@@ -3029,7 +3029,7 @@ void sdled_update(void){
 		FMU_LED3_Control(false);
 	}
 	osDelay(200);
-	if(sdlog->m_Logger_Status!=SDLog::Logger_Record){
+	if(m_Logger_Status!=Logger_Record){
 		FMU_LED3_Control(false);
 	}
 	if(robot_state==STATE_STOP&&get_batt_volt()>5.3f&&get_batt_volt()<param->lowbatt_land_volt.value){
@@ -3531,7 +3531,7 @@ bool arm_motors(void)
 
     set_soft_armed(true);
 
-    sdlog->Logger_Enable();
+    Logger_Enable();
 
     // flag exiting this function
     in_arm_motors = false;
@@ -3559,7 +3559,7 @@ void disarm_motors(void)
     set_soft_armed(false);
 
     //停止日志记录
-    sdlog->Logger_Disable();
+    Logger_Disable();
     takeoff_time=0;
     Buzzer_set_ring_type(BUZZER_DISARM);
     robot_state_desired=STATE_NONE;//清空状态标志
@@ -3961,8 +3961,82 @@ void Logger_Data_Callback(void){
 	//add other loggers
 }
 
+void Log_To_File(Log_Type log_type)
+{
+	switch(log_type){
+		case LOG_CAT:
+			Logger_Cat_Callback();
+			break;
+		case LOG_DATA:
+			Logger_Data_Callback();
+			break;
+		case LOG_END:
+			sd_log_end();
+			break;
+		default:
+			break;
+	}
+}
+
+void Logger_Enable(void)
+{
+  m_Logger_Status=Logger_Open;
+}
+
+void Logger_Disable(void)
+{
+	if((m_Logger_Status == Logger_Record)||(m_Logger_Status == Logger_Open)){
+	  m_Logger_Status=Logger_Close;
+	}
+}
+
+void Logger_Write_Gnss(void)
+{
+  m_Logger_Status=Logger_Gnss_Write;
+}
+
+void Logger_Read_Gnss(void)
+{
+  m_Logger_Status=Logger_Gnss_Read;
+}
+
+
+
 void Logger_Update(void){
-	sdlog->Logger_Update();
+	switch (m_Logger_Status){
+		case Logger_Idle:
+			osDelay(100);
+			break;
+		case Logger_Close:
+			sd_log_close();
+			m_Logger_Status = Logger_Idle;
+			osDelay(10);
+			break;
+		case Logger_Open:
+			if(sd_log_start()!=FR_OK){//没插卡
+				m_Logger_Status=Logger_Close;
+				break;
+			}
+			Log_To_File(LOG_CAT);
+			Log_To_File(LOG_END);
+			m_Logger_Status = Logger_Record;
+			break;
+		case Logger_Record:
+			Log_To_File(LOG_DATA);
+			Log_To_File(LOG_END);
+			break;
+		case Logger_Gnss_Write:
+			Write_Gnss_File();
+			m_Logger_Status = Logger_Idle;
+			break;
+		case Logger_Gnss_Read:
+			Read_Gnss_File();
+			m_Logger_Status = Logger_Idle;
+			break;
+		default:
+			m_Logger_Status = Logger_Idle;
+			break;
+   }
 }
 
 static mavlink_message_t msg_scaled_imu, msg_attitude_quaternion;

@@ -20,7 +20,6 @@
 #include "compass/declination.h"
 #include "accel/accelCalibrator.h"
 #include "flash/flash.h"
-#include "sdlog/sdlog.h"
 #include "uwb/uwb.h"
 #include "common.h"
 
@@ -36,7 +35,6 @@ extern PosControl *pos_control;
 extern CompassCalibrator *compassCalibrator;
 extern AccelCalibrator *accelCalibrator;
 extern DataFlash *dataflash;
-extern SDLog *sdlog;
 extern UWB *uwb;
 
 const float _dt=0.0025;

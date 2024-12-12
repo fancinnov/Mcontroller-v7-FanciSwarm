@@ -335,6 +335,26 @@ float get_channel_roll_angle(void);
 float get_channel_pitch_angle(void);
 float get_channel_yaw_angle(void);
 
+typedef enum{
+	LOG_CAT = 0,
+	LOG_DATA,
+	LOG_END,
+}Log_Type;
+typedef enum{
+	Logger_Idle = 0,
+	Logger_Open,
+	Logger_Close,
+	Logger_Record,
+	Logger_Gnss_Write,
+	Logger_Gnss_Read
+}Logger_Status;
+
+void Logger_Update(void);
+void Logger_Enable(void);
+void Logger_Disable(void);
+void Logger_Write_Gnss(void);
+void Logger_Read_Gnss(void);
+void Log_To_File(Log_Type log_type);
 void Logger_Cat_Callback(void);
 void Logger_Data_Callback(void);
 
