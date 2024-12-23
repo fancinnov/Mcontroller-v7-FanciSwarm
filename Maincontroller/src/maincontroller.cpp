@@ -4014,7 +4014,7 @@ void Logger_Update(void){
 			break;
 		case Logger_Open:
 			if(sd_log_start()!=FR_OK){//没插卡
-				m_Logger_Status=Logger_Close;
+				m_Logger_Status=Logger_Idle;
 				break;
 			}
 			Log_To_File(LOG_CAT);

@@ -25,6 +25,7 @@
 #include "fatfs.h"
 #include "fdcan.h"
 #include "i2c.h"
+#include "mdma.h"
 #include "rtc.h"
 #include "sdmmc.h"
 #include "spi.h"
@@ -126,6 +127,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
+  MX_MDMA_Init();
   MX_ADC1_Init();
   MX_FDCAN1_Init();
   MX_I2C1_Init();
