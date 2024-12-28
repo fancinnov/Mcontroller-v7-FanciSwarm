@@ -22,8 +22,8 @@ public:
 	}
 	float wind_x=0.0f, wind_y=0.0f, vx_body=0.0f, vy_body=0.0f;
 	float wind_x_filt=0.0f, wind_y_filt=0.0f;
-private:
 	float accel_x_filt=0.0f, accel_y_filt=0.0f;
+private:
 	float euler_roll_angle=0.0f,euler_pitch_angle=0.0f,pilot_cos_pitch_target=0.0f;
 	float ax_body=0.0f,ay_body=0.0f,pilot_actual_accel_x=0.0f,pilot_actual_accel_y=0.0f;
 	float Qt=1.0f; //观测数据的方差

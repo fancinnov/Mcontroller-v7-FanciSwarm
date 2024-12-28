@@ -165,7 +165,7 @@
 #endif
 
 #ifndef RANGEFINDER_GLITCH_ALT_CM
- # define RANGEFINDER_GLITCH_ALT_CM  15.0f      // amount of rangefinder change to be considered a glitch
+ # define RANGEFINDER_GLITCH_ALT_CM  50.0f      // amount of rangefinder change to be considered a glitch
 #endif
 
 #ifndef RANGEFINDER_GLITCH_NUM_SAMPLES

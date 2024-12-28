@@ -462,7 +462,7 @@ void get_vl53lxx_data(uint16_t distance_mm){
 	}else{
 		enable_surface_track=true;
 	}
-	if(distance_mm>5&&distance_mm<2000){//2m以下数据才可靠
+	if(distance_mm>0&&distance_mm<2000){//2m以下数据才可靠
 		Vector3f pos_offset=dcm_matrix*vl53lxx_offset;
 		if(!rangefinder_state.alt_healthy){
 			rangefinder_state.alt_cm_filt.reset((float)distance_mm*0.1);//重置滤波器
@@ -2739,7 +2739,7 @@ void ahrs_update(void){
 
 static float baro_alt_filt=0,baro_alt_init=0,baro_alt_correct=0;
 static uint16_t init_baro=0;
-static float baro_offset=0.0f, baro_offset_gain=1.5f;
+static float baro_alt=0.0f;
 void update_baro_alt(void){
 	if(init_baro<20){//前20点不要
 		init_baro++;
@@ -2757,12 +2757,7 @@ void update_baro_alt(void){
 		return;
 	}
 
-	if(robot_state==STATE_TAKEOFF&&!get_gnss_state()){
-		baro_offset=motors->get_throttle()*baro_offset_gain;
-	}else{
-		baro_offset=0;
-	}
-	float baro_alt=(spl06_data.baro_alt-baro_offset)*100.0f;//螺旋桨气流引起气压偏置
+	baro_alt=spl06_data.baro_alt*100.0f;
 	if(isnan(baro_alt) || isinf(baro_alt)){
 		return;
 	}
@@ -3354,6 +3349,17 @@ void get_wind_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max
 	roll_d+=constrain_float(wind_roll_deg, -angle_max, angle_max);
 	pitch_d+=constrain_float(wind_pitch_deg, -angle_max, angle_max);
 #endif
+//	usb_printf("pitch:%f|roll:%f\n",pitch_d,roll_d);
+}
+
+void get_accel_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max)
+{
+	if (USE_FLOW&&USE_MAG&&!opticalflow_state.healthy&&!get_gnss_state()){
+		float wind_pitch_deg=atanf(ekf_wind->accel_x_filt/GRAVITY_MSS)*RAD_TO_DEG;
+		float wind_roll_deg=-atanf(ekf_wind->accel_y_filt*cosf(pitch_log)/GRAVITY_MSS)*RAD_TO_DEG;
+		roll_d=constrain_float(wind_roll_deg, -angle_max, angle_max);
+		pitch_d=constrain_float(wind_pitch_deg, -angle_max, angle_max);
+	}
 //	usb_printf("pitch:%f|roll:%f\n",pitch_d,roll_d);
 }
 
@@ -4130,7 +4136,7 @@ void motors_test_update(void){
 void debug(void){
 //	usb_printf("pos_x:%f,pos_y:%f\n",get_odom_x(),get_odom_y());
 //	usb_printf("l:%f\n",get_dcm_matrix().c.z);
-//	usb_printf("ux:%f|uy:%f|uz:%f|x:%f|y:%f|vx:%f|vy:%f\n", uwb->uwb_position.x, uwb->uwb_position.y,  uwb->uwb_position.z, get_pos_x(), get_pos_y(),get_vel_x(), get_vel_y());
+//	usb_printf("nedx:%f|nedy:%f|x:%f|y:%f|vx:%f|vy:%f\n", get_ned_pos_x(), get_ned_pos_y(), get_pos_x(), get_pos_y(),get_vel_x(), get_vel_y());
 //	usb_printf("gps_position lat:%lf ,lon:%lf ,alt:%lf \r\n" , (double)gps_position->lat/10000000.0,(double)gps_position->lon/10000000.0,(double)gps_position->alt/1000000.0);
 //	usb_printf("l:%d|%d|%d\n",*(__IO uint8_t*)((uint32_t)0x081D0000),*(__IO uint8_t*)((uint32_t)0x081D0001),*(__IO uint8_t*)((uint32_t)0x081D0002));
 //	usb_printf("l:%d\n",dataflash->get_addr_num_max());

@@ -184,6 +184,7 @@ void mode_autonav(void){
 			pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 			target_roll=pos_control->get_roll();
 			target_pitch=pos_control->get_pitch();
+			get_accel_correct_lean_angles(target_roll, target_pitch, 5.0f);
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 		}
 		// call position controller
@@ -242,6 +243,7 @@ void mode_autonav(void){
 			target_roll=pos_control->get_roll();
 			target_pitch=pos_control->get_pitch();
 			get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
+			get_accel_correct_lean_angles(target_roll, target_pitch, 5.0f);
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<30.0f)){//降落检测
 				if(target_climb_rate<-1.0f){
@@ -259,7 +261,10 @@ void mode_autonav(void){
 		}else{//自主模式
 			if((HAL_GetTick()-takeoff_time)<2000){
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
-				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
+				target_roll=pos_control->get_roll();
+				target_pitch=pos_control->get_pitch();
+				get_accel_correct_lean_angles(target_roll, target_pitch, 5.0f);
+				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			}else{
 				target_yaw_rate=get_mav_yaw_rate_target();
 				target_yaw=(get_mav_yaw_target()*DEG_TO_RAD-yaw_delta)*RAD_TO_DEG;
@@ -276,6 +281,11 @@ void mode_autonav(void){
 						pos_control->set_xy_target(get_mav_x_target(),get_mav_y_target());
 						pos_control->set_desired_velocity_xy(get_mav_vx_target(), get_mav_vy_target());
 						pos_control->set_desired_accel_xy(get_mav_ax_target(), get_mav_ay_target());
+						break;
+					case MAV_FRAME_LOCAL_NED:
+						ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
+						ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
+						pos_control->set_xy_target(ned_target_pos.x,ned_target_pos.y);
 						break;
 					case MAV_FRAME_GLOBAL:
 						if(!get_first_pos){
@@ -311,6 +321,7 @@ void mode_autonav(void){
 				target_roll=pos_control->get_roll();
 				target_pitch=pos_control->get_pitch();
 				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
+				get_accel_correct_lean_angles(target_roll, target_pitch, 5.0f);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 				relative_alt=get_mav_z_target();
 				if(relative_alt>=30.0f){
