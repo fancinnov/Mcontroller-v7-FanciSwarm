@@ -44,7 +44,7 @@ static bool initial_gnss=false;
 static bool get_gnss_location=false;
 static bool get_opticalflow=false;
 static bool get_rangefinder_data=false;
-static bool get_mav_yaw=false, get_odom_xy=false;
+static bool get_mav_yaw=false, get_odom_xy=false, update_odom_xy=false;
 static bool mag_corrected=false, mag_correcting=false;
 static bool rc_channels_sendback=false;
 static bool gcs_connected=false;
@@ -77,6 +77,7 @@ static float completion_percent=0;
 static float uwb_yaw_delta=0.0f;
 static float takeoff_alt=0.0f;
 static uint32_t odom_time=0.0f;
+static float odom_z_last=0.0f;
 
 static Vector3f accel, gyro, mag;								//原生加速度、角速度、磁罗盘测量值
 static Vector3f accel_correct, gyro_correct, mag_correct;		//修正后的加速度、角速度、磁罗盘测量值
@@ -384,6 +385,9 @@ void get_tfmini_data(uint8_t buf)
 		rangefinder_state.alt_healthy=false;
 		return;
 	}
+	if(use_odom_z){
+		return;
+	}
 	if(force_vl53lxx){
 		return;
 	}
@@ -446,6 +450,9 @@ static Vector3f vl53lxx_offset=Vector3f(0.0f, 0.0f, 0.0f);//激光测距仪相�
 void get_vl53lxx_data(uint16_t distance_mm){
 	if(!use_rangefinder){
 		rangefinder_state.alt_healthy=false;
+		return;
+	}
+	if(use_odom_z){
 		return;
 	}
 	if(distance_mm>5&&distance_mm<100){
@@ -511,7 +518,7 @@ void opticalflow_update(void){
 	//光流坐标系->机体坐标系//TODO:add gyro offset
 	flow_bf_x=(float)lc302_data.flow_y_integral*0.0001f+constrain_float(flow_gyro_offset.y*flow_gain_x*param->flow_gain.value.x, -0.2, 0.2);
 	flow_bf_y=-(float)lc302_data.flow_x_integral*0.0001f+constrain_float(flow_gyro_offset.x*flow_gain_y*param->flow_gain.value.y, -0.2, 0.2)+constrain_float(flow_gain_z*flow_gyro_offset.z*param->flow_gain.value.z, -0.2, 0.2);
-//	usb_printf_dir("$%d %d;", lc302_data.flow_x_integral, (int16_t)(constrain_float(flow_gyro_offset.x*flow_gain_y*param->flow_gain.value.y, -0.2, 0.2)*10000));
+//	usb_printf_dir("$%d %d;", lc302_data.flow_x_integral, (int16_t)(constrain_float(flow_gain_z*flow_gyro_offset.z*param->flow_gain.value.z, -0.2, 0.2)*10000));
 	//机体坐标系->大地坐标系
 	opticalflow_state.rads.x=flow_bf_x*ahrs_cos_yaw()-flow_bf_y*ahrs_sin_yaw();
 	opticalflow_state.rads.y=flow_bf_x*ahrs_sin_yaw()+flow_bf_y*ahrs_cos_yaw();
@@ -523,24 +530,24 @@ void opticalflow_update(void){
 	if(abs(flow_vel.length()-ekf_baro->vel_2d)>20.0f&&!lose_flow){//奇异值
 		lose_flow=true;
 	}else{
+		if(flow_sample_flag<flow_sample_num){
+			flow_vel_sample[flow_sample_flag]=flow_vel;
+		}else{
+			flow_vel_sample[flow_sample_flag%flow_sample_num]=flow_vel;
+			flow_vel.zero();
+			for(uint8_t i=0;i<flow_sample_num;i++){
+				flow_vel+=flow_vel_sample[i];
+			}
+			flow_vel*=1.0/flow_sample_num;
+		}
+		flow_sample_flag++;
+		if(flow_sample_flag==flow_sample_num*2){
+			flow_sample_flag=flow_sample_num;
+		}
 		opticalflow_state.vel=flow_vel;
 		lose_flow=false;
 	}
 	opticalflow_state.pos+=opticalflow_state.vel*opticalflow_state.flow_dt;
-	if(flow_sample_flag<flow_sample_num){
-		flow_vel_sample[flow_sample_flag]=flow_vel;
-	}else{
-		flow_vel_sample[flow_sample_flag%flow_sample_num]=flow_vel;
-		flow_vel.zero();
-		for(uint8_t i=0;i<flow_sample_num;i++){
-			flow_vel+=flow_vel_sample[i];
-		}
-		flow_vel*=1.0/flow_sample_num;
-	}
-	flow_sample_flag++;
-	if(flow_sample_flag==flow_sample_num*2){
-		flow_sample_flag=flow_sample_num;
-	}
 //	usb_printf_dir("$%d %d;",(int16_t)flow_vel.y, (int16_t)flow_vel_sample[flow_sample_flag%10].y);
 	if(!get_gnss_state()||!USE_MAG){
 		get_gnss_location=true;
@@ -1534,6 +1541,16 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				odom_3d.y=local_position_ned_cov.y * 100.0f-odom_offset.y;  //cm
 				if(use_odom_z){
 					odom_3d.z=-local_position_ned_cov.z * 100.0f; //cm
+					if(use_rangefinder&&!is_equal(odom_3d.z, 0.0f)&&!is_equal(odom_3d.z, odom_z_last)&&fabs(odom_3d.z-odom_z_last)<100.0f){
+						rangefinder_state.enabled=true;
+						rangefinder_state.alt_healthy=true;
+						rangefinder_state.alt_cm=odom_3d.z;
+						rangefinder_state.last_update_ms=HAL_GetTick();
+					}else{
+						rangefinder_state.alt_healthy=false;
+						rangefinder_state.enabled=false;
+					}
+					odom_z_last=odom_3d.z;
 				}
 				if(!get_gnss_state()){
 					gps_position->alt=-local_position_ned_cov.z * 1000.0f; //mm
@@ -1541,6 +1558,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				usb_printf("odom:%f|%f|%f|%f\n",odom_3d.x,odom_3d.y,odom_3d.z,yaw_map*RAD_TO_DEG);
 				if(!USE_MAG&&enable_odom&&odom_safe){
 					get_odom_xy=true;
+					update_odom_xy=true;
 				}
 				break;
 			case MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED:     // MAV ID: 84
@@ -2941,25 +2959,47 @@ void ekf_odom_xy(void){
 
 static uint32_t update_gnss_time=0;
 static float odom_2d=0.0f,odom_2d_x_last=0.0f,odom_2d_y_last=0.0f;
+static bool force_odom=false;
+static uint16_t opticalflow_tick=0;
 void ekf_gnss_xy(void){
 #if USE_GNSS
 	if(!ahrs->is_initialed()||(!ahrs_healthy)){
 		return;
 	}
-	if(get_odom_xy&&enable_odom&&odom_safe&&!USE_MAG){
+	if(update_odom_xy&&enable_odom&&odom_safe&&!USE_MAG){
 		odom_2d=safe_sqrt((odom_3d.x-odom_2d_x_last)*(odom_3d.x-odom_2d_x_last)+(odom_3d.y-odom_2d_y_last)*(odom_3d.y-odom_2d_y_last));
 //		usb_printf("odom:%f|%d\n",odom_2d,odom_safe);
 		if(odom_2d<=50.0f&&odom_2d>0.0f){
 			ned_current_pos.x=odom_3d.x;
 			ned_current_pos.y=odom_3d.y;
-			get_odom_xy=false;
+			update_odom_xy=false;
 			get_gnss_location=true;
+			if(!opticalflow_state.healthy&&USE_ODOMETRY){
+				pos_control->get_vel_xy_pid().kD(Vector2f(param->vel_xy_pid.value_d*2,param->vel_xy_pid.value_d*2));
+				if(!force_odom){
+					set_constrain_vel_d(true);
+					force_odom=true;
+				}
+			}
 		}else if(odom_2d>50.0f&&get_soft_armed()){
 			odom_safe=false;
 			robot_state_desired=STATE_LANDED;
 		}
 		odom_2d_x_last=odom_3d.x;
 		odom_2d_y_last=odom_3d.y;
+	}
+	if(opticalflow_state.healthy&&USE_ODOMETRY){
+		if(opticalflow_tick>400){
+			pos_control->get_vel_xy_pid().kD(Vector2f(param->vel_xy_pid.value_d,param->vel_xy_pid.value_d));
+			if(force_odom){
+				set_constrain_vel_d(true);
+				force_odom=false;
+			}
+		}else{
+			opticalflow_tick++;
+		}
+	}else{
+		opticalflow_tick=0;
 	}
 	if(get_gnss_location){
 		update_pos=true;
@@ -2970,7 +3010,9 @@ void ekf_gnss_xy(void){
 			ekf_gnss->reset();
 		}
 	}
+#if USE_WIND
 	ekf_wind->update(get_gnss_location,get_ned_vel_x(),get_ned_vel_y());
+#endif
 	ekf_gnss->update(get_gnss_location,get_ned_pos_x(),get_ned_pos_y(),get_ned_vel_x(),get_ned_vel_y());
 //	usb_printf("x:%f|y:%f\n",ekf_wind->wind_x,ekf_wind->wind_y);
 #endif
@@ -2978,6 +3020,9 @@ void ekf_gnss_xy(void){
 
 float get_pos_x(void){//cm
 #if USE_GNSS
+	if(force_odom&&USE_ODOMETRY){
+		return ekf_odometry->pos_x;
+	}
 	return ekf_gnss->pos_x;
 #elif USE_ODOMETRY
 	return ekf_odometry->pos_x;
@@ -2986,6 +3031,9 @@ float get_pos_x(void){//cm
 
 float get_pos_y(void){//cm
 #if USE_GNSS
+	if(force_odom&&USE_ODOMETRY){
+		return ekf_odometry->pos_y;
+	}
 	return ekf_gnss->pos_y;
 #elif USE_ODOMETRY
 	return ekf_odometry->pos_y;
@@ -2998,6 +3046,9 @@ float get_pos_z(void){//cm
 
 float get_vel_x(void){//cm/s
 #if USE_GNSS
+	if(force_odom&&USE_ODOMETRY){
+		return ekf_odometry->vel_x;
+	}
 	return ekf_gnss->vel_x;
 #elif USE_ODOMETRY
 	return ekf_odometry->vel_x;
@@ -3006,6 +3057,9 @@ float get_vel_x(void){//cm/s
 
 float get_vel_y(void){//cm/s
 #if USE_GNSS
+	if(force_odom&&USE_ODOMETRY){
+		return ekf_odometry->vel_y;
+	}
 	return ekf_gnss->vel_y;
 #elif USE_ODOMETRY
 	return ekf_odometry->vel_y;
@@ -3215,11 +3269,6 @@ float get_surface_tracking_climb_rate(float target_rate, float current_alt_targe
 		  return target_rate;
 	}
 
-	if((HAL_GetTick()-rangefinder_state.last_healthy_ms)>2000){//rangefinder超过两秒没有更新，认为它不健康
-		rangefinder_state.alt_healthy=false;
-		return target_rate;
-	}
-
     static uint32_t last_call_ms = 0;
     float distance_error;
     float velocity_correction;
@@ -3359,6 +3408,8 @@ void get_accel_correct_lean_angles(float &roll_d, float &pitch_d, float angle_ma
 		float wind_roll_deg=-atanf(ekf_wind->accel_y_filt*cosf(pitch_log)/GRAVITY_MSS)*RAD_TO_DEG;
 		roll_d=constrain_float(wind_roll_deg, -angle_max, angle_max);
 		pitch_d=constrain_float(wind_pitch_deg, -angle_max, angle_max);
+		pos_control->set_xy_target(get_pos_x(), get_pos_y());
+		pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 	}
 //	usb_printf("pitch:%f|roll:%f\n",pitch_d,roll_d);
 }

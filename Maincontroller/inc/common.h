@@ -246,6 +246,8 @@ bool get_soft_armed(void);
 void set_soft_armed(bool soft_armed);
 bool get_thr_force_decrease(void);
 void set_thr_force_decrease(bool force_decrease);
+bool get_constrain_vel_d(void);
+void set_constrain_vel_d(bool constrain);
 void compass_calibrate(void);
 bool get_force_autonav(void);
 void set_enable_odom(bool enable);

@@ -34,6 +34,7 @@ bool mode_autonav_init(void){
 		pos_control->set_desired_velocity_z(get_vel_z());
 	}
 	set_manual_throttle(false);//设置为自动油门
+	attitude->bf_feedforward(true);//是否启用姿态的前馈
 	Buzzer_set_ring_type(BUZZER_MODE_SWITCH);
 	usb_printf("switch mode autonav!\n");
 	float ch7=get_channel_7();

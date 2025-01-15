@@ -444,7 +444,7 @@ void set_comm4_data(uint8_t value);
 void comm_send_buf(mavlink_channel_t chan, uint8_t* buf, uint16_t len);
 
 //usb port
-#define USB_Buffer_length 2048
+#define USB_Buffer_length 4096
 /**
   * @brief  usb数据发送函数
   * @param  buf: 待发送数据的数组起始地址
@@ -470,7 +470,7 @@ void usb_printf(const char* s, ...);
 void usb_printf_dir(const char* s, ...);
 
 //serial port
-#define URAT_DMA_Buffer_length 2048
+#define URAT_DMA_Buffer_length 4096
 void set_s1_baudrate(uint32_t baudrate);//配置串口1波特率，默认初始波特率为115200
 void set_s2_baudrate(uint32_t baudrate);//配置串口2波特率，默认初始波特率为115200
 void set_s3_baudrate(uint32_t baudrate);//配置串口3波特率，默认初始波特率为115200

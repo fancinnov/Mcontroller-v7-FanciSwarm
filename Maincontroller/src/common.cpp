@@ -8,6 +8,7 @@
 
 static bool _soft_armed=false;//心跳包中表示是否解锁的标志位
 static bool _thr_force_decrease=false;//强制油门下降
+static bool _vel_d_constrain=false;
 ROBOT_STATE robot_state=STATE_NONE;
 ROBOT_STATE robot_state_desired=STATE_NONE;
 ROBOT_MAIN_MODE robot_main_mode=MODE_AIR;
@@ -27,6 +28,14 @@ bool get_thr_force_decrease(void){
 
 void set_thr_force_decrease(bool force_decrease){
 	_thr_force_decrease=force_decrease;
+}
+
+bool get_constrain_vel_d(void){
+	return _vel_d_constrain;
+}
+
+void set_constrain_vel_d(bool constrain){
+	_vel_d_constrain=constrain;
 }
 
 bool mode_init(void){
