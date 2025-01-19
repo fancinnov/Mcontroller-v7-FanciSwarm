@@ -81,6 +81,18 @@ void mode_autonav(void){
 		target_climb_rate=0.0f;
 	}
 
+	if(get_vib_value()>10.0&&(HAL_GetTick()-takeoff_time)>2000&&takeoff_time>0){//猛烈撞击
+		disarm_motors();
+	}
+
+	if(get_dcm_matrix().c.z>0.5f&&get_accel_filt().z<0){//倾角小于60度
+		safe_time=HAL_GetTick();
+	}else{
+		if((HAL_GetTick()-safe_time)>5000){//大倾角
+			disarm_motors();
+		}
+	}
+
 	// Alt Hold State Machine Determination
 	if (!motors->get_armed()) {
 		althold_state = AltHold_MotorStopped;
@@ -185,7 +197,7 @@ void mode_autonav(void){
 			pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 			target_roll=pos_control->get_roll();
 			target_pitch=pos_control->get_pitch();
-			get_accel_correct_lean_angles(target_roll, target_pitch, 5.0f);
+			get_accel_correct_lean_angles(target_roll, target_pitch, 10.0f);
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 		}
 		// call position controller
@@ -244,7 +256,7 @@ void mode_autonav(void){
 			target_roll=pos_control->get_roll();
 			target_pitch=pos_control->get_pitch();
 			get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
-			get_accel_correct_lean_angles(target_roll, target_pitch, 5.0f);
+			get_accel_correct_lean_angles(target_roll, target_pitch, 10.0f);
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<30.0f)){//降落检测
 				if(target_climb_rate<-1.0f){
@@ -264,7 +276,7 @@ void mode_autonav(void){
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 				target_roll=pos_control->get_roll();
 				target_pitch=pos_control->get_pitch();
-				get_accel_correct_lean_angles(target_roll, target_pitch, 5.0f);
+				get_accel_correct_lean_angles(target_roll, target_pitch, 10.0f);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			}else{
 				target_yaw_rate=get_mav_yaw_rate_target();
@@ -303,7 +315,7 @@ void mode_autonav(void){
 						ned_dis_2d.y=ned_target_pos.y-pos_control->get_pos_target().y;
 						if(ned_dis_2d.length()>1.0f){
 							reach_target_point=false;
-							vel_desired=ned_dis_2d.normalized()*30;//设置30cm/s的跟踪速度
+							vel_desired=ned_dis_2d.normalized()*param->mission_vel_max.value;//设置跟踪速度
 							pos_control->shift_pos_xy_target(vel_desired.x*_dt, vel_desired.y*_dt);
 						}else{
 							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
@@ -322,7 +334,7 @@ void mode_autonav(void){
 				target_roll=pos_control->get_roll();
 				target_pitch=pos_control->get_pitch();
 				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
-				get_accel_correct_lean_angles(target_roll, target_pitch, 5.0f);
+				get_accel_correct_lean_angles(target_roll, target_pitch, 10.0f);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 				relative_alt=get_mav_z_target();
 				if(relative_alt>=30.0f){
@@ -345,7 +357,7 @@ void mode_autonav(void){
 		}
 
 		if(robot_state_desired==STATE_LANDED||execute_land||landing>1){//自动降落
-			target_climb_rate=-constrain_float(param->auto_land_speed.value, 0.0f, param->pilot_speed_dn.value);//设置降落速度cm/s
+			target_climb_rate=constrain_float(target_climb_rate, -param->pilot_speed_dn.value, -param->auto_land_speed.value);//设置降落速度cm/s
 		}
 
 		if(target_climb_rate<-1.0f){
@@ -358,18 +370,6 @@ void mode_autonav(void){
 			if(landing>1&&rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<param->landing_lock_alt.value)){
 				disarm_motors();
 				landing=0;
-			}
-		}
-
-		if(get_vib_value()>10.0&&(HAL_GetTick()-takeoff_time)>2000){//猛烈撞击
-			disarm_motors();
-		}
-
-		if(get_dcm_matrix().c.z>0.5f&&get_accel_filt().z<0){//倾角小于60度
-			safe_time=HAL_GetTick();
-		}else{
-			if((HAL_GetTick()-safe_time)>5000){//大倾角
-				disarm_motors();
 			}
 		}
 

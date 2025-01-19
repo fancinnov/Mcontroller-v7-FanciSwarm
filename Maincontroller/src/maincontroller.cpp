@@ -2701,6 +2701,7 @@ void compass_calibrate(void){
 
 static float roll_sum=0, pitch_sum=0;
 static uint8_t horizon_correct_flag=0;
+static float ax_body=0.0f, ay_body=0.0f;
 void ahrs_update(void){
 	if((!gyro_calibrate())||(!accel_calibrate())||(!initial_accel_gyro)){
 		ahrs_healthy=false;
@@ -2745,14 +2746,17 @@ void ahrs_update(void){
 		sin_pitch=sinf(pitch_rad);
 		cos_yaw=cosf(yaw_rad);
 		sin_yaw=sinf(yaw_rad);
-		ahrs_healthy=true;
-	}
+		ax_body=0.5*ax_body+0.5*(accel_ef_filt.x*cos_yaw + accel_ef_filt.y*sin_yaw);
+		ay_body=0.5*ay_body+0.5*(-accel_ef_filt.x*sin_yaw + accel_ef_filt.y*cos_yaw);
+		if(mag_correcting){
 #if USE_MAG
-	if(mag_correcting){
-		compass_calibrate();
-		ahrs_healthy=false;
-	}
+			compass_calibrate();
 #endif
+			ahrs_healthy=false;
+		}else{
+			ahrs_healthy=true;
+		}
+	}
 }
 
 static float baro_alt_filt=0,baro_alt_init=0,baro_alt_correct=0;
@@ -2974,7 +2978,7 @@ void ekf_gnss_xy(void){
 			ned_current_pos.y=odom_3d.y;
 			update_odom_xy=false;
 			get_gnss_location=true;
-			if(!opticalflow_state.healthy&&USE_ODOMETRY){
+			if((!opticalflow_state.healthy||!rangefinder_state.alt_healthy||rangefinder_state.alt_cm>150.0f)&&USE_ODOMETRY){
 				pos_control->get_vel_xy_pid().kD(Vector2f(param->vel_xy_pid.value_d*2,param->vel_xy_pid.value_d*2));
 				if(!force_odom){
 					set_constrain_vel_d(true);
@@ -2988,7 +2992,7 @@ void ekf_gnss_xy(void){
 		odom_2d_x_last=odom_3d.x;
 		odom_2d_y_last=odom_3d.y;
 	}
-	if(opticalflow_state.healthy&&USE_ODOMETRY){
+	if(opticalflow_state.healthy&&rangefinder_state.alt_healthy&&rangefinder_state.alt_cm<150.0f&&USE_ODOMETRY){
 		if(opticalflow_tick>400){
 			pos_control->get_vel_xy_pid().kD(Vector2f(param->vel_xy_pid.value_d,param->vel_xy_pid.value_d));
 			if(force_odom){
@@ -3404,10 +3408,10 @@ void get_wind_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max
 void get_accel_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max)
 {
 	if (USE_FLOW&&USE_MAG&&!opticalflow_state.healthy&&!get_gnss_state()){
-		float wind_pitch_deg=atanf(ekf_wind->accel_x_filt/GRAVITY_MSS)*RAD_TO_DEG;
-		float wind_roll_deg=-atanf(ekf_wind->accel_y_filt*cosf(pitch_log)/GRAVITY_MSS)*RAD_TO_DEG;
-		roll_d=constrain_float(wind_roll_deg, -angle_max, angle_max);
-		pitch_d=constrain_float(wind_pitch_deg, -angle_max, angle_max);
+		float acc_pitch_deg=atanf(ax_body/GRAVITY_MSS)*RAD_TO_DEG;
+		float acc_roll_deg=-atanf(ay_body*cosf(pitch_log)/GRAVITY_MSS)*RAD_TO_DEG;
+		roll_d=constrain_float(acc_roll_deg, -angle_max, angle_max);
+		pitch_d=constrain_float(acc_pitch_deg, -angle_max, angle_max);
 		pos_control->set_xy_target(get_pos_x(), get_pos_y());
 		pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 	}
@@ -3565,7 +3569,7 @@ bool arm_motors(void)
 		return false;
 	}
 	//TODO: add other pre-arm check
-	if (!ahrs_healthy||!initial_baro||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||!odom_safe){
+	if (!ahrs_healthy||!initial_baro||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||!odom_safe||(USE_ODOMETRY&&odom_2d==0)){
 		Buzzer_set_ring_type(BUZZER_ERROR);
 		return false;//传感器异常，禁止电机启动
 	}
@@ -3628,7 +3632,7 @@ void unlock_motors(void){
 		return;
 	}
 	//TODO: add other pre-arm check
-	if (!ahrs_healthy||!initial_baro||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||!odom_safe){
+	if (!ahrs_healthy||!initial_baro||(PREARM_CHECK&&(use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||!odom_safe||(USE_ODOMETRY&&odom_2d==0)){
 		Buzzer_set_ring_type(BUZZER_ERROR);
 		return;//传感器异常，禁止电机启动
 	}
@@ -3669,7 +3673,7 @@ static void update_land_detector(void)
 		rangefinder_state.alt_healthy=false;
 	}
 	//******************落地前********************
-	if((get_vel_z()<0)&&(pos_control->get_desired_velocity().z<0)&&(get_vib_value()>param->vib_land.value)&&(motors->get_throttle()<motors->get_throttle_hover())&&(!motors->limit.throttle_lower)){//TODO:降落时防止弹起来
+	if((get_vel_z()<0)&&(ekf_baro->vel_2d<100)&&(pos_control->get_desired_velocity().z<0)&&(get_vib_value()>param->vib_land.value)&&(motors->get_throttle()<motors->get_throttle_hover())&&(!motors->limit.throttle_lower)){//TODO:降落时防止弹起来
 		disarm_motors();
 	}
 	//******************落地后ls*********************
