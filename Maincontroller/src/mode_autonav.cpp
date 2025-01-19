@@ -81,15 +81,17 @@ void mode_autonav(void){
 		target_climb_rate=0.0f;
 	}
 
-	if(get_vib_value()>10.0&&(HAL_GetTick()-takeoff_time)>2000&&takeoff_time>0){//猛烈撞击
-		disarm_motors();
-	}
-
-	if(get_dcm_matrix().c.z>0.5f&&get_accel_filt().z<0){//倾角小于60度
-		safe_time=HAL_GetTick();
-	}else{
-		if((HAL_GetTick()-safe_time)>5000){//大倾角
+	if((HAL_GetTick()-takeoff_time)>200&&takeoff_time>0){
+		if(get_vib_value()>10.0){//猛烈撞击
 			disarm_motors();
+		}
+
+		if(get_dcm_matrix().c.z>0.5f&&get_accel_filt().z<0){//倾角小于60度
+			safe_time=HAL_GetTick();
+		}else{
+			if((HAL_GetTick()-safe_time)>5000||((HAL_GetTick()-safe_time)>1000&&get_dcm_matrix().c.z<-0.5)){//大倾角
+				disarm_motors();
+			}
 		}
 	}
 
@@ -111,6 +113,7 @@ void mode_autonav(void){
 		robot_state=STATE_STOP;
 		execute_land=false;
 		lock_time=HAL_GetTick();
+		takeoff_time=0;
 		if(robot_state_desired==STATE_FLYING||robot_state_desired==STATE_TAKEOFF){
 			arm_motors();
 		}else{
@@ -210,6 +213,7 @@ void mode_autonav(void){
 		robot_state=STATE_LANDED;
 		execute_land=false;
 		landing=0;
+		takeoff_time=0;
 		// set motors to spin-when-armed if throttle below deadzone, otherwise full range (but motors will only spin at min throttle)
 		if (target_climb_rate < 0.0f) {
 			motors->set_desired_spool_state(Motors::DESIRED_SPIN_WHEN_ARMED);
