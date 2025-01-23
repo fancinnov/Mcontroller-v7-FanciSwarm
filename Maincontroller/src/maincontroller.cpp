@@ -509,10 +509,6 @@ void opticalflow_update(void){
 	}else{
 		opticalflow_state.healthy=false;
 		flow_sample_flag=0;
-		if(!get_gnss_state()){
-			ned_current_vel.x=0.0f;
-			ned_current_vel.y=0.0f;
-		}
 		return;
 	}
 	//光流坐标系->机体坐标系//TODO:add gyro offset
@@ -580,7 +576,7 @@ static uint16_t gnss_point_statis=0;
 static uint8_t gnss_reset_notify=0;
 static float motor_test_type=0.0f,motor_test_throttle=0.0f,motor_test_timeout=0.0f,motor_test_num=0.0f;
 static uint32_t motor_test_start_time=0;
-
+static float odom_2d=0.0f,odom_2d_x_last=0.0f,odom_2d_y_last=0.0f;
 uint8_t get_coordinate_mode(void){
 	return set_position_target_local_ned.coordinate_frame;
 }
@@ -1556,6 +1552,9 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 					gps_position->alt=-local_position_ned_cov.z * 1000.0f; //mm
 				}
 				usb_printf("odom:%f|%f|%f|%f\n",odom_3d.x,odom_3d.y,odom_3d.z,yaw_map*RAD_TO_DEG);
+				odom_2d=safe_sqrt((odom_3d.x-odom_2d_x_last)*(odom_3d.x-odom_2d_x_last)+(odom_3d.y-odom_2d_y_last)*(odom_3d.y-odom_2d_y_last));
+				odom_2d_x_last=odom_3d.x;
+				odom_2d_y_last=odom_3d.y;
 				if(!USE_MAG&&enable_odom&&odom_safe){
 					get_odom_xy=true;
 					update_odom_xy=true;
@@ -2962,7 +2961,6 @@ void ekf_odom_xy(void){
 }
 
 static uint32_t update_gnss_time=0;
-static float odom_2d=0.0f,odom_2d_x_last=0.0f,odom_2d_y_last=0.0f;
 static bool force_odom=false;
 static uint16_t opticalflow_tick=0;
 void ekf_gnss_xy(void){
@@ -2971,38 +2969,31 @@ void ekf_gnss_xy(void){
 		return;
 	}
 	if(update_odom_xy&&enable_odom&&odom_safe&&!USE_MAG){
-		odom_2d=safe_sqrt((odom_3d.x-odom_2d_x_last)*(odom_3d.x-odom_2d_x_last)+(odom_3d.y-odom_2d_y_last)*(odom_3d.y-odom_2d_y_last));
 //		usb_printf("odom:%f|%d\n",odom_2d,odom_safe);
 		if(odom_2d<=50.0f&&odom_2d>0.0f){
 			ned_current_pos.x=odom_3d.x;
 			ned_current_pos.y=odom_3d.y;
 			update_odom_xy=false;
 			get_gnss_location=true;
-			if((!opticalflow_state.healthy||!rangefinder_state.alt_healthy||rangefinder_state.alt_cm>150.0f)&&USE_ODOMETRY){
-				pos_control->get_vel_xy_pid().kD(Vector2f(param->vel_xy_pid.value_d*2,param->vel_xy_pid.value_d*2));
-				if(!force_odom){
-					set_constrain_vel_d(true);
-					force_odom=true;
-				}
-			}
 		}else if(odom_2d>50.0f&&get_soft_armed()){
 			odom_safe=false;
 			robot_state_desired=STATE_LANDED;
 		}
-		odom_2d_x_last=odom_3d.x;
-		odom_2d_y_last=odom_3d.y;
 	}
 	if(opticalflow_state.healthy&&rangefinder_state.alt_healthy&&rangefinder_state.alt_cm<150.0f&&USE_ODOMETRY){
-		if(opticalflow_tick>400){
+		if(opticalflow_tick>1000){
 			pos_control->get_vel_xy_pid().kD(Vector2f(param->vel_xy_pid.value_d,param->vel_xy_pid.value_d));
-			if(force_odom){
-				set_constrain_vel_d(true);
-				force_odom=false;
-			}
+			set_constrain_vel_d(true);
+			force_odom=false;
 		}else{
 			opticalflow_tick++;
 		}
 	}else{
+		if(USE_ODOMETRY&&enable_odom&&odom_safe&&!USE_MAG&&odom_2d<=50.0f&&odom_2d>0.0f){
+			pos_control->get_vel_xy_pid().kD(Vector2f(param->vel_xy_pid.value_d*2,param->vel_xy_pid.value_d*2));
+			set_constrain_vel_d(true);
+			force_odom=true;
+		}
 		opticalflow_tick=0;
 	}
 	if(get_gnss_location){
@@ -3405,15 +3396,24 @@ void get_wind_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max
 //	usb_printf("pitch:%f|roll:%f\n",pitch_d,roll_d);
 }
 
+static uint8_t flow_tick=0;
 void get_accel_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max)
 {
-	if (USE_FLOW&&USE_MAG&&!opticalflow_state.healthy&&!get_gnss_state()){
-		float acc_pitch_deg=atanf(ax_body/GRAVITY_MSS)*RAD_TO_DEG;
-		float acc_roll_deg=-atanf(ay_body*cosf(pitch_log)/GRAVITY_MSS)*RAD_TO_DEG;
-		roll_d=constrain_float(acc_roll_deg, -angle_max, angle_max);
-		pitch_d=constrain_float(acc_pitch_deg, -angle_max, angle_max);
-		pos_control->set_xy_target(get_pos_x(), get_pos_y());
-		pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
+	if (USE_FLOW&&USE_MAG&&!get_gnss_state()){
+		if(opticalflow_state.healthy){
+			flow_tick=0;
+		}else{
+			float acc_pitch_deg=atanf(ax_body/GRAVITY_MSS)*RAD_TO_DEG;
+			float acc_roll_deg=-atanf(ay_body*cosf(pitch_log)/GRAVITY_MSS)*RAD_TO_DEG;
+			roll_d=constrain_float(acc_roll_deg, -angle_max, angle_max);
+			pitch_d=constrain_float(acc_pitch_deg, -angle_max, angle_max);
+			flow_tick++;
+			if(flow_tick>4){
+				pos_control->set_xy_target(get_pos_x(), get_pos_y());
+				pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
+				flow_tick=4;
+			}
+		}
 	}
 //	usb_printf("pitch:%f|roll:%f\n",pitch_d,roll_d);
 }
