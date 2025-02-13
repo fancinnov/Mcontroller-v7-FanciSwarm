@@ -303,6 +303,7 @@ void mode_autonav(void){
 						ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
 						ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
 						pos_control->set_xy_target(ned_target_pos.x,ned_target_pos.y);
+						pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 						break;
 					case MAV_FRAME_GLOBAL:
 						if(!get_first_pos){
@@ -322,13 +323,13 @@ void mode_autonav(void){
 							vel_desired=ned_dis_2d.normalized()*param->mission_vel_max.value;//设置跟踪速度
 							pos_control->shift_pos_xy_target(vel_desired.x*_dt, vel_desired.y*_dt);
 						}else{
-							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 							ned_target_dis_2d.x=ned_target_pos.x-get_pos_x();
 							ned_target_dis_2d.y=ned_target_pos.y-get_pos_y();
 							if(ned_target_dis_2d.length()<50.0){//距离目标点小于50cm认为到达
 								reach_target_point=true;
 							}
 						}
+						pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 						break;
 					default:
 						break;

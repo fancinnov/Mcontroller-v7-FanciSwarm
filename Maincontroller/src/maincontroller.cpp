@@ -469,7 +469,7 @@ void get_vl53lxx_data(uint16_t distance_mm){
 	}else{
 		enable_surface_track=true;
 	}
-	if(distance_mm>0&&distance_mm<2000){//2m以下数据才可靠
+	if(distance_mm>0&&distance_mm<4000){//4m以下数据才可靠
 		Vector3f pos_offset=dcm_matrix*vl53lxx_offset;
 		if(!rangefinder_state.alt_healthy){
 			rangefinder_state.alt_cm_filt.reset((float)distance_mm*0.1);//重置滤波器

@@ -247,7 +247,7 @@ void mode_poshold(void){
 			pos_control->set_xy_target(get_pos_x(), get_pos_y());
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 			if(execute_return||execute_land){//如果是正在执行返航过程中定位丢失，那么强制降落
-				target_climb_rate=-constrain_float(param->auto_land_speed.value, 0.0f, param->pilot_speed_dn.value);//设置降落速度cm/s
+				target_climb_rate=constrain_float(target_climb_rate, -param->pilot_speed_dn.value, -param->auto_land_speed.value);//设置降落速度cm/s
 			}
 		}else if(execute_land){
 			target_yaw+=target_yaw_rate*_dt;
@@ -255,10 +255,11 @@ void mode_poshold(void){
 			pos_control->calc_desired_velocity(_dt);
 			pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 			attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
-			target_climb_rate=-constrain_float(param->auto_land_speed.value, 0.0f, param->pilot_speed_dn.value);//设置降落速度cm/s
+			target_climb_rate=constrain_float(target_climb_rate, -param->pilot_speed_dn.value, -param->auto_land_speed.value);//设置降落速度cm/s
 		}else if(execute_return){
 			pos_control->set_speed_xy(param->mission_vel_max.value);
 			pos_control->set_accel_xy(param->mission_accel_max.value);
+			pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 			if(reach_return_alt){
 				ned_target_pos.x=ned_takeoff_pos.x;
 				ned_target_pos.y=ned_takeoff_pos.y;
@@ -296,7 +297,7 @@ void mode_poshold(void){
 				if(get_pos_z()<return_alt_cm){
 					target_climb_rate=param->pilot_speed_up.value;
 				}else{
-					target_climb_rate=-param->pilot_speed_dn.value;
+					target_climb_rate=constrain_float(target_climb_rate, -param->pilot_speed_dn.value, -param->auto_land_speed.value);//设置降落速度cm/s
 				}
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
@@ -356,6 +357,7 @@ void mode_poshold(void){
 						}
 					}
 					//TODO:巡线结束后需要执行的策略
+					pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 					pos_control->set_xy_target(ned_target_pos.x, ned_target_pos.y);
 					pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 					attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
