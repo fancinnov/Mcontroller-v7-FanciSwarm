@@ -297,7 +297,7 @@ void mode_poshold(void){
 				if(get_pos_z()<return_alt_cm){
 					target_climb_rate=param->pilot_speed_up.value;
 				}else{
-					target_climb_rate=constrain_float(target_climb_rate, -param->pilot_speed_dn.value, -param->auto_land_speed.value);//设置降落速度cm/s
+					target_climb_rate=-param->pilot_speed_dn.value;
 				}
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);

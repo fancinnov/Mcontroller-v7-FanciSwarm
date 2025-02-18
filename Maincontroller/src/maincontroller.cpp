@@ -2266,6 +2266,7 @@ void send_mavlink_param_list(mavlink_channel_t chan)
 
 void ekf_z_reset(void){
 	ekf_baro->reset();
+	update_baro_alt();
 	ekf_baro_alt();
 	pos_control->set_alt_target_to_current_alt();
 }
