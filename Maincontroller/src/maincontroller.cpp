@@ -1766,13 +1766,8 @@ void send_mavlink_data(mavlink_channel_t chan)
 		global_attitude_position.x=get_pos_x()*cosf(uwb_yaw_delta)-get_pos_y()*sinf(uwb_yaw_delta);
 		global_attitude_position.y=get_pos_x()*sinf(uwb_yaw_delta)+get_pos_y()*cosf(uwb_yaw_delta);
 	}else{
-		if((USE_ODOMETRY&&odom_2d==0)){
-			global_attitude_position.x=-0.01;
-			global_attitude_position.y=-0.01;
-		}else{
-			global_attitude_position.x=get_pos_x();
-			global_attitude_position.y=get_pos_y();
-		}
+		global_attitude_position.x=get_pos_x();
+		global_attitude_position.y=get_pos_y();
 	}
 	global_attitude_position.z=get_pos_z();
 	global_attitude_position.usec=time;
@@ -1785,8 +1780,13 @@ void send_mavlink_data(mavlink_channel_t chan)
 		global_position_int.lon=(int32_t)(uwb_pos.x*sinf(uwb_yaw_delta)+uwb_pos.y*cosf(uwb_yaw_delta));//cm
 		global_position_int.alt=(int32_t)uwb_pos.z;//cm
 	}else{
-		global_position_int.lat=gps_position->lat;//deg*1e7
-		global_position_int.lon=gps_position->lon;//deg*1e7
+		if((USE_ODOMETRY&&odom_2d==0)){
+			global_position_int.lat=-1;
+			global_position_int.lon=-1;
+		}else{
+			global_position_int.lat=gps_position->lat;//deg*1e7
+			global_position_int.lon=gps_position->lon;//deg*1e7
+		}
 		global_position_int.alt=gps_position->alt;//mm
 	}
 	global_position_int.relative_alt=(int32_t)(rangefinder_state.alt_cm*10);//对地高度 mm
