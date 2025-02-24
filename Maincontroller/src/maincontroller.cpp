@@ -617,15 +617,25 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				}
 				time_last_heartbeat[(uint8_t)chan]=HAL_GetTick();
 				if(heartbeat.type==MAV_TYPE_GCS){//地面站
-					gcs_channel=chan;
-					gcs_connected=true;
+					if(!gcs_connected){
+						gcs_channel=chan;
+						gcs_connected=true;
+						if(!get_soft_armed()){
+							Buzzer_set_ring_type(BUZZER_MAV_CONNECT);
+						}
+					}
 					if(chan==MAVLINK_COMM_0){
 						offboard_connected=true;
 						offboard_channel=MAVLINK_COMM_0;
 					}
 				}else if(heartbeat.type==MAV_TYPE_ONBOARD_CONTROLLER){//机载电脑
+					if(!offboard_connected){
 						offboard_connected=true;
 						offboard_channel=chan;
+						if(!get_soft_armed()){
+							Buzzer_set_ring_type(BUZZER_MAV_CONNECT);
+						}
+					}
 				}
 				if(msg_received->sysid==254){
 					force_autonav=true;
@@ -1756,8 +1766,13 @@ void send_mavlink_data(mavlink_channel_t chan)
 		global_attitude_position.x=get_pos_x()*cosf(uwb_yaw_delta)-get_pos_y()*sinf(uwb_yaw_delta);
 		global_attitude_position.y=get_pos_x()*sinf(uwb_yaw_delta)+get_pos_y()*cosf(uwb_yaw_delta);
 	}else{
-		global_attitude_position.x=get_pos_x();
-		global_attitude_position.y=get_pos_y();
+		if((USE_ODOMETRY&&odom_2d==0)){
+			global_attitude_position.x=-0.01;
+			global_attitude_position.y=-0.01;
+		}else{
+			global_attitude_position.x=get_pos_x();
+			global_attitude_position.y=get_pos_y();
+		}
 	}
 	global_attitude_position.z=get_pos_z();
 	global_attitude_position.usec=time;
@@ -2266,6 +2281,7 @@ void send_mavlink_param_list(mavlink_channel_t chan)
 
 void ekf_z_reset(void){
 	ekf_baro->reset();
+	_baro_alt_filter.reset(0.0f);
 	update_baro_alt();
 	ekf_baro_alt();
 	pos_control->set_alt_target_to_current_alt();
