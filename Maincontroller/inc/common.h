@@ -196,7 +196,7 @@
 // spool definition
 // time (in seconds) for throttle to increase from zero to min throttle, and min throttle to full throttle.
 #define MOTORS_SPOOL_UP_TIME_DEFAULT 0.5f
-#define VIB_LAND_THR 3.0f
+#define VIB_LAND_THR 6.0f
 #define ACRO_YAW_EXPO 0.0f
 #define ACRO_YAW_P 1.5f
 #define MAN_THR_FILT_HZ 0.5f
@@ -323,6 +323,7 @@ float get_mav_ax_roll_target(void);
 float get_mav_ay_pitch_target(void);
 float get_mav_yaw_target(void);
 float get_mav_yaw_rate_target(void);
+bool get_mav_target_state(void);
 
 float get_vib_value(void);
 float get_vib_angle_z(void);

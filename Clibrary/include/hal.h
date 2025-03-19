@@ -205,6 +205,8 @@ void ekf_gnss_xy(void);
 void throttle_loop(void);
 void get_tfmini_data(uint8_t buf);
 void get_vl53lxx_data(uint16_t distance_mm);
+void get_uart_tf2mini_data(uint8_t buf);
+void update_tf2mini_data(float dis);
 void opticalflow_update(void);
 void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t* msg_received, mavlink_status_t* status);
 void distribute_mavlink_data(void);
@@ -414,6 +416,7 @@ void config_comm(void);
 void reset_usb(void);
 void check_usb_reset(void);
 void comm_data_flush(void);//清空USB和串口接收缓存
+void use_mlink_esp(mavlink_channel_t chan);
 /*****************************以下为usb+串口接收数据相关函数******************************/
 uint16_t get_comm0_available(void);	//判断usb口是否有数据收到,有数据收到则返回接收到的byte数,没有数据收到返回0;	(注意：该函数只有在usb口是自定义模式 DEV_COMM 时才有效)
 uint16_t get_comm1_available(void);	//判断串口1是否有数据收到,有数据收到则返回接收到的byte数,没有数据收到返回0;	(注意：该函数只有在串口1是自定义模式 DEV_COMM 时才有效)

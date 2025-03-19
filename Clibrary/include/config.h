@@ -48,12 +48,13 @@
 #define RC_INPUT_RANGE 	1000.0f // 脉宽 1000us
 
 //串口模式
-#define CONFIG_COMM 0x00 //配置模式
-#define DEV_COMM 	0x01 //自定义模式
-#define MAV_COMM  	0x02 //Mavlink模式
-#define GPS_COMM  	0x03 //GPS模式
-#define TFMINI_COMM 0X04 //TFmini激光测距仪
-#define LC302_COMM  0X05 //LC302光流
+#define CONFIG_COMM		0x00 //配置模式
+#define DEV_COMM		0x01 //自定义模式
+#define MAV_COMM		0x02 //Mavlink模式
+#define GPS_COMM		0x03 //GPS模式
+#define TFMINI_COMM		0X04 //TFmini激光测距仪
+#define LC302_COMM		0X05 //LC302光流
+#define TF2MINI_COMM	0X06 //TF2mini激光测距仪
 
 /***************usb+串口配置****************
  * *************COMM_0:USB口***************
@@ -68,6 +69,7 @@
  * (3)GPS_COMM  	GPS模式
  * (4)TFMINI_COMM  	TFmini激光测距仪
  * (5)LC302_COMM	LC302光流模块
+ * (6)TF2MINI_COMM	TF2mini激光测距仪
  * **************************************/
 #define COMM_0 MAV_COMM
 #define COMM_1 MAV_COMM
@@ -100,6 +102,9 @@
 //配置里程计
 #define USE_ODOMETRY 0 // if use odometry, set 1; if don't use odometry, set 0;
 
+//VINS
+#define USE_VINS 0 // if use vins, set 1; if use lidar-slam, set 0;
+
 //配置锁定模式
 #define USE_CH8_LOCK 0
 
@@ -129,6 +134,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2025022201
+#define VERSION_FIRMWARE 2025031801
 
 #endif /* INCLUDE_CONFIG_H_ */

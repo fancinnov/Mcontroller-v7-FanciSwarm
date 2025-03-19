@@ -323,6 +323,7 @@ void InitTask(void *argument)
   update_dataflash();
   RC_Input_Init(RC_INPUT_SBUS);
   wifi_init();
+  use_mlink_esp(MAVLINK_COMM_4);
   IMU_Init();
   MAG_Init();
   while(BARO_Init());
