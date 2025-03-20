@@ -605,7 +605,7 @@ void opticalflow_update(void){
 
 //接收
 static uint32_t time_last_heartbeat[MAVLINK_COMM_NUM_BUFFERS]={0};
-static uint32_t time_last_attitude=0;
+static uint32_t time_last_attitude=0, get_odom_time=0;
 static mavlink_heartbeat_t heartbeat;
 static mavlink_set_mode_t setmode;
 static mavlink_mission_count_t mission_count;
@@ -1626,6 +1626,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 					get_odom_xy=true;
 					update_odom_xy=true;
 				}
+				get_odom_time=HAL_GetTick();
 				break;
 			case MAVLINK_MSG_ID_SET_POSITION_TARGET_LOCAL_NED:     // MAV ID: 84
 				mavlink_msg_set_position_target_local_ned_decode(msg_received, &set_position_target_local_ned);
@@ -3135,6 +3136,10 @@ void ekf_gnss_xy(void){
 #if USE_GNSS
 	if(!ahrs->is_initialed()||(!ahrs_healthy)){
 		return;
+	}
+	if(get_odom_time>0&&HAL_GetTick()-get_odom_time>500){
+		odom_safe=false;
+		robot_state_desired=STATE_LANDED;
 	}
 	if(opticalflow_state.healthy&&rangefinder_state.alt_healthy&&rangefinder_state.alt_cm<150.0f){
 		if(update_odom_xy&&enable_odom&&odom_safe&&!USE_MAG&&get_gnss_location){
