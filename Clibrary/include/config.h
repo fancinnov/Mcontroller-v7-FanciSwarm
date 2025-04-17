@@ -79,7 +79,7 @@
 #define COMM_UWB DEV_COMM
 
 //串口波特率
-#define COMM_1_BANDRATE 115200
+#define COMM_1_BANDRATE 115200 //注意！最新版本固件的串口波特率需要在app上配置，此处配置无效！
 #define COMM_2_BANDRATE 19200
 #define COMM_3_BANDRATE 115200
 #define COMM_4_BANDRATE 115200
@@ -104,6 +104,12 @@
 
 //VINS
 #define USE_VINS 0 // if use vins, set 1; if use lidar-slam, set 0;
+
+//SLAM定高
+#define USE_ODOM_Z 0 // if use slam z, set 1; else set 0;
+
+//动捕
+#define USE_MOTION 0 // if use motion capture, set 1; else set 0;
 
 //配置锁定模式
 #define USE_CH8_LOCK 0
@@ -134,6 +140,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2025032001
+#define VERSION_FIRMWARE 2025041701
 
 #endif /* INCLUDE_CONFIG_H_ */

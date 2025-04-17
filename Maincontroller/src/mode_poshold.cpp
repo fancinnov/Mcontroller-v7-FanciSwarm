@@ -375,7 +375,7 @@ void mode_poshold(void){
 			target_climb_rate=-constrain_float(param->auto_land_speed.value, 0.0f, param->pilot_speed_dn.value);//设置降落速度cm/s
 		}
 
-		if(target_climb_rate<-1.0f){
+		if(target_climb_rate<-1.0f&&!USE_ODOM_Z){
 			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<30.0f&&rangefinder_state.alt_cm>20.0f)){
 				landing++;
 				if(landing>2){

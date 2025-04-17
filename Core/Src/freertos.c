@@ -313,14 +313,11 @@ void InitTask(void *argument)
   /* USER CODE BEGIN InitTask */
   reset_usb();
   config_comm();
-  set_s1_baudrate(COMM_1_BANDRATE);
-  set_s2_baudrate(COMM_2_BANDRATE);
-  set_s3_baudrate(COMM_3_BANDRATE);
-  set_s4_baudrate(COMM_4_BANDRATE);
   usb_printf("\r\nSystem: Mcontroller-V%ld-%ld initializing ...\r\n",VERSION_HARDWARE, VERSION_FIRMWARE);
   adc_init();
   FRAM_Init();
   update_dataflash();
+  set_comm_bandrate();
   RC_Input_Init(RC_INPUT_SBUS);
   wifi_init();
   use_mlink_esp(MAVLINK_COMM_4);
@@ -328,6 +325,7 @@ void InitTask(void *argument)
   MAG_Init();
   while(BARO_Init());
   vl53lxx_init();
+  tf2mini_init();
   motors_init();
   attitude_init();
   pos_init();
@@ -447,6 +445,7 @@ void Loop50hzTask(void *argument)
 	  RC_Input_Loop();
 	  uwb_position_update();
 	  vl53lxx_update();
+	  get_i2c_tf2mini_data();
   }
   /* USER CODE END Loop50hzTask */
 }

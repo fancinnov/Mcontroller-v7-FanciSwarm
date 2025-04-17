@@ -324,6 +324,7 @@ float get_mav_ay_pitch_target(void);
 float get_mav_yaw_target(void);
 float get_mav_yaw_rate_target(void);
 bool get_mav_target_state(void);
+void reset_mav_target_state(void);
 
 float get_vib_value(void);
 float get_vib_angle_z(void);
@@ -952,7 +953,7 @@ typedef struct{
 	}gnss_offset;
 
 	// @DisplayName: mag_diagonals
-	// @Units: mss
+	// @Units: mGuass
 	// @Range: 1.0
 	struct mag_diagonals{
 		uint16_t num=57;
@@ -960,14 +961,38 @@ typedef struct{
 		Vector3f value={1.0f,1.0f,1.0f};
 	}mag_diagonals;
 
-	// @DisplayName: accel_offdiagonals
-	// @Units: mss
+	// @DisplayName: mag_offdiagonals
+	// @Units: mGuass
 	// @Range: 0 1.0
 	struct mag_offdiagonals{
 		uint16_t num=58;
 		dataflash_type type=VECTOR3F;
 		Vector3f value;
 	}mag_offdiagonals;
+
+	struct comm1_bandrate{
+		uint16_t num=59;
+		dataflash_type type=UINT32;
+		uint32_t value=COMM_1_BANDRATE;
+	}comm1_bandrate;
+
+	struct comm2_bandrate{
+		uint16_t num=60;
+		dataflash_type type=UINT32;
+		uint32_t value=COMM_2_BANDRATE;
+	}comm2_bandrate;
+
+	struct comm3_bandrate{
+		uint16_t num=61;
+		dataflash_type type=UINT32;
+		uint32_t value=COMM_3_BANDRATE;
+	}comm3_bandrate;
+
+	struct comm4_bandrate{
+		uint16_t num=62;
+		dataflash_type type=UINT32;
+		uint32_t value=COMM_4_BANDRATE;
+	}comm4_bandrate;
 
 	/* *************************************************
 	 * ****************Dev code begin*******************/

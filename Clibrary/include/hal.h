@@ -185,6 +185,7 @@ extern LC302_Data lc302_data;
 extern PWM_Channel pwm_channel;
 
 /****************c/c++ interface*******************************/
+void set_comm_bandrate(void);
 void rc_range_init(void);
 void motors_init(void);
 void attitude_init(void);
@@ -366,6 +367,8 @@ uint8_t get_lc302_data(uint8_t buf);//解析成功返回0,未解析完返回1,�
 //激光驱动
 bool vl53lxx_init(void);
 void vl53lxx_update(void);
+void tf2mini_init(void);
+void get_i2c_tf2mini_data(void);
 
 //超声波驱动
 void HC_SR04_init(void);
