@@ -49,6 +49,7 @@ static bool mag_corrected=false, mag_correcting=false;
 static bool rc_channels_sendback=false;
 static bool gcs_connected=false;
 static bool offboard_connected=false;
+static bool camera_connected=false;
 static bool force_autonav=false;
 static bool enable_surface_track=true;
 static bool use_rangefinder=true;
@@ -551,6 +552,8 @@ static float flow_gain_x=-0.025, flow_gain_y=0.025, flow_gain_z=0.0025;
 static uint8_t flow_sample_flag=0,flow_i_buff=0;
 static bool lose_flow=false;
 static float ned_pos_x_buff[50], ned_pos_y_buff[50];
+static float flow_cutoff_freq=20.0f;
+static LowPassFilterVector2f _flow_filter;
 void opticalflow_update(void){
 #if USE_FLOW
 	if(rangefinder_state.alt_healthy){
@@ -558,7 +561,9 @@ void opticalflow_update(void){
 	}else{
 		flow_alt=get_pos_z()-takeoff_alt;//cm
 	}
-	flow_alt=constrain_float(flow_alt, 3.0f, 150.0f);
+	flow_cutoff_freq=20.0f/constrain_float(flow_alt*0.01, 1.0f, 4.0f);
+	_flow_filter.set_cutoff_frequency(50,flow_cutoff_freq);
+	flow_alt=constrain_float(flow_alt, 3.0f, 200.0f);
 	if(lc302_data.quality==245){
 		opticalflow_state.healthy=true;
 		get_opticalflow=true;
@@ -584,6 +589,7 @@ void opticalflow_update(void){
 	}else{
 		if(flow_sample_flag<flow_sample_num){
 			flow_vel_sample[flow_sample_flag]=flow_vel;
+			_flow_filter.reset(flow_vel);
 		}else{
 			flow_vel_sample[flow_sample_flag%flow_sample_num]=flow_vel;
 			flow_vel.zero();
@@ -596,9 +602,10 @@ void opticalflow_update(void){
 		if(flow_sample_flag==flow_sample_num*2){
 			flow_sample_flag=flow_sample_num;
 		}
-		opticalflow_state.vel=flow_vel;
+		opticalflow_state.vel=_flow_filter.apply(flow_vel);
 		lose_flow=false;
 	}
+
 	opticalflow_state.pos+=opticalflow_state.vel*opticalflow_state.flow_dt;
 //	usb_printf_dir("$%d %d;",(int16_t)flow_vel.y, (int16_t)flow_vel_sample[flow_sample_flag%10].y);
 	if(!get_gnss_state()||!USE_MAG){
@@ -699,7 +706,8 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 						}
 					}
 				}else if(heartbeat.type==MAV_TYPE_CAMERA){
-					if(!offboard_connected){
+					if(!offboard_connected&&!camera_connected){
+						camera_connected=true;
 						offboard_channel=chan;
 						if(!get_soft_armed()){
 							Buzzer_set_ring_type(BUZZER_MAV_CONNECT);
@@ -1701,6 +1709,9 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				if(USE_MOTION&&odom_2d==0){
 					odom_2d=0.0001;
 				}
+				if(odom_2d<=50.0f){
+					odom_safe=true;
+				}
 				odom_2d_x_last=odom_3d.x;
 				odom_2d_y_last=odom_3d.y;
 				if(!USE_MAG&&enable_odom&&odom_safe){
@@ -1910,6 +1921,7 @@ void send_mavlink_data(mavlink_channel_t chan)
 			}
 		}else if(chan==offboard_channel){
 			offboard_connected=false;
+			camera_connected=false;
 			offboard_channel=255;
 		}
 		return;
@@ -3217,9 +3229,7 @@ void ekf_odom_xy(void){
 	}else{
 		if(HAL_GetTick()-update_odom_time>1000&&robot_state==STATE_STOP){//未起飞且定位源失效
 			ekf_odometry->reset();
-			if(!USE_MOTION){
-				update_pos=false;
-			}
+			update_pos=false;
 		}
 	}
 	odom_vel_x=odom_vel_x_filter.apply(odom_vel_x_buff[odom_vel_tick]);
@@ -3244,7 +3254,7 @@ void ekf_gnss_xy(void){
 	if(!ahrs->is_initialed()||(!ahrs_healthy)){
 		return;
 	}
-	if(get_odom_time>0&&HAL_GetTick()-get_odom_time>500&&!USE_MOTION){
+	if(get_odom_time>0&&HAL_GetTick()-get_odom_time>500){
 		odom_safe=false;
 		robot_state_desired=STATE_LANDED;
 	}
@@ -3265,7 +3275,7 @@ void ekf_gnss_xy(void){
 				ned_current_pos.x=odom_3d.x+(opticalflow_state.pos.x-ned_pos_x_buff[flow_odom_tick]);
 				ned_current_pos.y=odom_3d.y+(opticalflow_state.pos.y-ned_pos_y_buff[flow_odom_tick]);
 				update_odom_xy=false;
-			}else if(odom_2d>50.0f&&get_soft_armed()&&!USE_MOTION){
+			}else if(odom_2d>50.0f&&get_soft_armed()){
 				odom_safe=false;
 				robot_state_desired=STATE_LANDED;
 			}
@@ -3278,7 +3288,7 @@ void ekf_gnss_xy(void){
 			ned_current_vel.x=odom_vel_x;
 			ned_current_vel.y=odom_vel_y;
 			get_gnss_location=true;
-		}else if(odom_2d>50.0f&&get_soft_armed()&&!USE_MOTION){
+		}else if(odom_2d>50.0f&&get_soft_armed()){
 			odom_safe=false;
 			robot_state_desired=STATE_LANDED;
 		}
@@ -3290,7 +3300,6 @@ void ekf_gnss_xy(void){
 		if(HAL_GetTick()-update_gnss_time>1000&&robot_state==STATE_STOP){//未起飞且定位源失效
 			ekf_wind->reset();
 			ekf_gnss->reset();
-			update_pos=false;
 		}
 	}
 #if USE_WIND
@@ -3673,7 +3682,7 @@ void get_wind_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max
 }
 
 static uint8_t flow_tick=0;
-void get_accel_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max)
+void get_accel_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max, bool auto_nav)
 {
 	if (USE_FLOW&&USE_MAG&&!get_gnss_state()){
 		if(opticalflow_state.healthy){
@@ -3685,8 +3694,12 @@ void get_accel_correct_lean_angles(float &roll_d, float &pitch_d, float angle_ma
 			pitch_d=constrain_float(acc_pitch_deg, -angle_max, angle_max);
 			flow_tick++;
 			if(flow_tick>4){
-				pos_control->set_xy_target(get_pos_x(), get_pos_y());
-				pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
+				if(!use_uwb){
+					pos_control->set_xy_target(get_pos_x(), get_pos_y());
+					if(!auto_nav){
+						pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
+					}
+				}
 				flow_tick=4;
 			}
 		}
