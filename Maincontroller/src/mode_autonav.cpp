@@ -24,7 +24,7 @@ static uint8_t landing=0;
 static float landing_alt=0.0f;
 static float relative_alt=0.0f;
 static Vector2f goal_2d;
-static bool goal_reset=false, goal_set=false, pos_nav=true;
+static bool goal_reset=false, goal_set=false;
 bool mode_autonav_init(void){
 	if(motors->get_armed()){//电机未锁定,禁止切换至该模式
 		Buzzer_set_ring_type(BUZZER_ERROR);
@@ -91,7 +91,10 @@ void mode_autonav(void){
 		if(get_dcm_matrix().c.z>0.5f&&get_accel_filt().z<0){//倾角小于60度
 			safe_time=HAL_GetTick();
 		}else{
-			if((HAL_GetTick()-safe_time)>5000||((HAL_GetTick()-safe_time)>1000&&get_dcm_matrix().c.z<-0.5)){//大倾角
+			if((HAL_GetTick()-safe_time)>3000){//大倾角
+				disarm_motors();
+			}
+			if(get_dcm_matrix().c.z<0.0f){//倾倒
 				disarm_motors();
 			}
 		}
@@ -198,12 +201,12 @@ void mode_autonav(void){
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		}else{//位置模式
 			target_yaw+=target_yaw_rate*_dt;
+			get_accel_vel_limit();
 			pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
 			pos_control->calc_desired_velocity(_dt);
 			pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 			target_roll=pos_control->get_roll();
 			target_pitch=pos_control->get_pitch();
-			get_accel_correct_lean_angles(target_roll, target_pitch, 10.0f, false);
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 		}
 		// call position controller
@@ -257,13 +260,13 @@ void mode_autonav(void){
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		}else if(ch7>0.3&&ch7<0.7){//位置模式
 			target_yaw+=target_yaw_rate*_dt;
+			get_accel_vel_limit();
 			pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
 			pos_control->calc_desired_velocity(_dt);
 			pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 			target_roll=pos_control->get_roll();
 			target_pitch=pos_control->get_pitch();
 			get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
-			get_accel_correct_lean_angles(target_roll, target_pitch, 10.0f, false);
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<30.0f)){//降落检测
 				if(target_climb_rate<-1.0f){
@@ -280,15 +283,15 @@ void mode_autonav(void){
 			}
 		}else{//自主模式
 			if((HAL_GetTick()-takeoff_time)<2000){
+				get_accel_vel_limit();
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 				target_roll=pos_control->get_roll();
 				target_pitch=pos_control->get_pitch();
-				get_accel_correct_lean_angles(target_roll, target_pitch, 10.0f, false);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
-				pos_nav=false;
 			}else{
 				pos_control->set_speed_xy(param->mission_vel_max.value);
 				pos_control->set_accel_xy(param->mission_accel_max.value);
+				get_accel_vel_limit();
 				if(get_mav_target_state()){
 					target_yaw_rate=get_mav_yaw_rate_target();
 					if(target_yaw_rate==0.0f&&get_mav_yaw_target()!=0.0f){
@@ -300,7 +303,6 @@ void mode_autonav(void){
 						case MAV_FRAME_BODY_NED:
 							pos_control->set_pilot_desired_acceleration(get_mav_ax_roll_target(), get_mav_ay_pitch_target(), target_yaw, _dt);
 							pos_control->calc_desired_velocity(_dt);
-							pos_nav=false;
 							break;
 						case MAV_FRAME_VISION_NED:
 							if(get_mav_x_target()!=0||get_mav_y_target()!=0){
@@ -308,7 +310,6 @@ void mode_autonav(void){
 							}
 							pos_control->set_desired_velocity_xy(get_mav_vx_target(), get_mav_vy_target());
 							pos_control->set_desired_accel_xy(get_mav_ax_target(), get_mav_ay_target());
-							pos_nav=true;
 							break;
 						case MAV_FRAME_LOCAL_NED:
 							ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
@@ -316,7 +317,6 @@ void mode_autonav(void){
 							pos_control->set_xy_target(ned_target_pos.x,ned_target_pos.y);
 							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
-							pos_nav=true;
 							break;
 						case MAV_FRAME_GLOBAL:
 							if(!get_first_pos){
@@ -344,18 +344,15 @@ void mode_autonav(void){
 							}
 							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
-							pos_nav=true;
 							break;
 						default:
 							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
-							pos_nav=true;
 							break;
 					}
 				}else{
 					pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 					pos_control->set_desired_accel_xy(0.0f, 0.0f);
-					pos_nav=true;
 				}
 				float stick=safe_sqrt(get_channel_pitch()*get_channel_pitch() + get_channel_roll()*get_channel_roll());
 				if(stick>0.9f){
@@ -381,7 +378,6 @@ void mode_autonav(void){
 				target_roll=pos_control->get_roll();
 				target_pitch=pos_control->get_pitch();
 				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
-				get_accel_correct_lean_angles(target_roll, target_pitch, 10.0f, pos_nav);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 				if(get_mav_vz_target()==0.0f){
 					relative_alt=get_mav_z_target();

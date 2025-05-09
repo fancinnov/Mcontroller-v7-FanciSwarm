@@ -196,7 +196,7 @@
 // spool definition
 // time (in seconds) for throttle to increase from zero to min throttle, and min throttle to full throttle.
 #define MOTORS_SPOOL_UP_TIME_DEFAULT 0.5f
-#define VIB_LAND_THR 6.0f
+#define VIB_LAND_THR 3.0f
 #define ACRO_YAW_EXPO 0.0f
 #define ACRO_YAW_P 1.5f
 #define MAN_THR_FILT_HZ 0.5f
