@@ -575,6 +575,9 @@ void opticalflow_update(void){
 		}
 		get_opticalflow=true;
 	}else{
+		if(robot_state==STATE_STOP){
+			return;
+		}
 		flow_good_tick=0;
 		opticalflow_state.healthy=false;
 		opticalflow_state.vel.x+=vel_ned_acc.x-vel_ned_acc_last.x;
@@ -609,7 +612,7 @@ void opticalflow_update(void){
 	flow_vel_delta.y=MAX(get_accel_ef().y*100*0.3,30.0f);
 	flow_vel.x=constrain_float(opticalflow_state.rads.x*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.x-flow_vel_delta.x, opticalflow_state.vel.x+flow_vel_delta.x);
 	flow_vel.y=constrain_float(opticalflow_state.rads.y*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.y-flow_vel_delta.y, opticalflow_state.vel.y+flow_vel_delta.y);
-	if(abs(flow_vel.length()-ekf_baro->vel_2d)>20.0f&&!lose_flow){//奇异值
+	if(abs(flow_vel.length()-opticalflow_state.vel.length())>20.0f&&opticalflow_state.vel.length()<30.0f&&!lose_flow){//奇异值
 		lose_flow=true;
 	}else{
 		if(flow_sample_flag<flow_sample_num){
@@ -3735,11 +3738,8 @@ void get_wind_correct_lean_angles(float &roll_d, float &pitch_d, float angle_max
 }
 
 void get_accel_vel_limit(void){
-	if(USE_FLOW&&!USE_ODOMETRY&&!get_gnss_state()&&!opticalflow_state.healthy&&!use_uwb){
+	if(USE_FLOW&&!USE_ODOMETRY&&!get_gnss_state()&&!opticalflow_state.healthy){
 		set_constrain_vel_d(true);
-		pos_control->set_lean_angle_max_d(5.0f);
-	}else{
-		pos_control->set_lean_angle_max_d(param->angle_max.value);
 	}
 }
 
