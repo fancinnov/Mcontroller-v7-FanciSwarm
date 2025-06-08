@@ -28,6 +28,7 @@ public:
 	Quaternion quaternion2=Quaternion();
 	void check_vibration(void);
 	float vib_value=0, vib_angle=0;
+	float roll_init=0.0f, pitch_init=0.0f, yaw_init=0.0f;
 private:
 	float T=0.0025;
 

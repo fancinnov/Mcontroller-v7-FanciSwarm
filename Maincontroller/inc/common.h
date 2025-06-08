@@ -339,6 +339,8 @@ float get_channel_roll_angle(void);
 float get_channel_pitch_angle(void);
 float get_channel_yaw_angle(void);
 
+void set_a8mini_yp_rate(int8_t yaw_rate, int8_t pitch_rate, mavlink_channel_t chan);//rate -100~100
+
 typedef enum{
 	LOG_CAT = 0,
 	LOG_DATA,

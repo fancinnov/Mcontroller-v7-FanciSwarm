@@ -117,6 +117,9 @@
 //是否启用抗风
 #define USE_WIND 0 //启用：1 不启用：0
 
+//是否使用A8MINI云台相机
+#define USE_A8MINI 0 // 启用：1 不启用：0
+
 //是否启用解锁检查
 #define PREARM_CHECK 1 //启用：1 不启用：0
 
@@ -140,6 +143,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2025051401
+#define VERSION_FIRMWARE 2025060601
 
 #endif /* INCLUDE_CONFIG_H_ */

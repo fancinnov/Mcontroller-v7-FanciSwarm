@@ -59,7 +59,7 @@ private:
 	float* error1_wind_y;
 	float* error2_wind_y;
 	float* Kal_wind_y;
-	float filt_hz_wind=20.0f;
+	float filt_hz_wind=1.0f;
 	float filt_hz_accel=5.0f;
 };
 

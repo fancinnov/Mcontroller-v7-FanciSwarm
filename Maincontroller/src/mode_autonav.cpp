@@ -362,7 +362,7 @@ void mode_autonav(void){
 						float goal_rgt=get_channel_roll();
 						goal_2d.x = (goal_fwd*ahrs_cos_yaw() - goal_rgt*ahrs_sin_yaw());
 						goal_2d.y = (goal_fwd*ahrs_sin_yaw() + goal_rgt*ahrs_cos_yaw());
-						goal_2d=goal_2d.normalized()*3.0f;//默认单次探索范围3m
+						goal_2d=goal_2d.normalized()*10.0f*constrain_float(get_channel_8(), 0.1f, 1.0f);//默认单次探索范围1~10m
 						goal_2d.x+=get_pos_x()*0.01;
 						goal_2d.y+=get_pos_y()*0.01;
 						goal_reset=false;

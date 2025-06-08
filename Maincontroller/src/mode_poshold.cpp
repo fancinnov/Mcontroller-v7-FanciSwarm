@@ -83,6 +83,13 @@ void mode_poshold(void){
 	float target_climb_rate = get_pilot_desired_climb_rate(get_channel_throttle());
 	target_climb_rate = constrain_float(target_climb_rate, -param->pilot_speed_dn.value, param->pilot_speed_up.value);
 
+	if((use_gcs&&!get_gcs_connected()&&!rc_channels_healthy())||(use_rc&&!rc_channels_healthy())){//遥控器未连接
+		target_roll=0.0f;
+		target_pitch=0.0f;
+		target_yaw_rate=0.0f;
+		target_climb_rate=0.0f;
+	}
+
 	// Alt Hold State Machine Determination
 	if (!motors->get_armed()) {
 		althold_state = AltHold_MotorStopped;

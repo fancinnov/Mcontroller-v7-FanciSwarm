@@ -446,6 +446,7 @@ void Loop50hzTask(void *argument)
 	  uwb_position_update();
 	  vl53lxx_update();
 	  get_i2c_tf2mini_data();
+	  MAG2_Get_Data();
   }
   /* USER CODE END Loop50hzTask */
 }
