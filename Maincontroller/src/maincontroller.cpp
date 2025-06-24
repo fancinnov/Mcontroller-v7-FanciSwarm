@@ -59,6 +59,7 @@ static bool enable_odom=true;
 static bool odom_safe=false;
 static bool get_mav_target=false;
 static bool use_gcs_target=true;
+static bool get_ego_mission=false;
 
 static float accel_filt_hz=10;//HZ
 static float gyro_filt_hz=20;//HZ
@@ -84,6 +85,7 @@ static float lidar_tc=0.05f;//lidar延迟0.05s
 static float motion_tc=0.1f;//动捕传输延迟0.1s
 static float vins_dt=0.067f, lidar_dt=0.1f;//slam周期
 static float motion_dt=0.1f;//动捕传输周期0.1s
+static float rf_alt_raw=0.0f;
 
 static Vector3f accel, gyro, mag;								//原生加速度、角速度、磁罗盘测量值
 static Vector3f accel_correct, gyro_correct, mag_correct;		//修正后的加速度、角速度、磁罗盘测量值
@@ -210,6 +212,7 @@ float get_mav_yaw_target(void){return mav_yaw_target;}
 float get_mav_yaw_rate_target(void){return mav_yaw_rate_target;}
 bool get_mav_target_state(void){return get_mav_target;}
 void reset_mav_target_state(void){get_mav_target=false;}
+bool use_ego_mission(void){return get_ego_mission;}
 
 void reset_dataflash(void){
 	dataflash->reset_addr_num_max();
@@ -407,9 +410,6 @@ void get_tfmini_data(uint8_t buf)
 		rangefinder_state.alt_healthy=false;
 		return;
 	}
-	if(USE_ODOM_Z){
-		return;
-	}
 	if(force_vl53lxx){
 		return;
 	}
@@ -437,18 +437,20 @@ void get_tfmini_data(uint8_t buf)
 			}else if(data_num==6&&chk_cal==buf){
 				cordist=tfmini_data[0]|(tfmini_data[1]<<8);//cm
 				strength=tfmini_data[2]|(tfmini_data[3]<<8);
-				rangefinder_state.last_update_ms=HAL_GetTick();
 				if(cordist>3&&cordist<=800){
 					use_tfmini=true;
+					rf_alt_raw=(float)cordist;
+					if(USE_ODOM_Z){
+						return;
+					}
 					Vector3f pos_offset=dcm_matrix*tfmini_offset;
 					if(!rangefinder_state.alt_healthy){
-						rangefinder_state.alt_cm_filt.reset((float)cordist);//重置滤波器
+						rangefinder_state.alt_cm_filt.reset(rf_alt_raw);//重置滤波器
 					}
-					rangefinder_state.alt_cm=rangefinder_state.alt_cm_filt.apply((float)cordist, (float)(HAL_GetTick()-rangefinder_state.last_healthy_ms)*0.001);
+					rangefinder_state.alt_cm=rangefinder_state.alt_cm_filt.apply(rf_alt_raw, (float)(HAL_GetTick()-rangefinder_state.last_healthy_ms)*0.001);
 					rangefinder_state.alt_cm=rangefinder_state.alt_cm*MAX(0.707f, dcm_matrix.c.z)+pos_offset.z;
 					rangefinder_state.last_healthy_ms=HAL_GetTick();
 					get_rangefinder_data=true;
-					enable_surface_track=true;
 					if(cordist>100){
 						rangefinder_state.enabled=true;
 					}
@@ -460,6 +462,7 @@ void get_tfmini_data(uint8_t buf)
 					}
 					rangefinder_state.alt_healthy=false;
 				}
+				rangefinder_state.last_update_ms=HAL_GetTick();
 				tfmini_state=TFMINI_IDLE;
 			}else{
 				tfmini_state=TFMINI_IDLE;
@@ -474,9 +477,6 @@ void get_vl53lxx_data(uint16_t distance_mm){
 		rangefinder_state.alt_healthy=false;
 		return;
 	}
-	if(USE_ODOM_Z){
-		return;
-	}
 	if(distance_mm>5&&distance_mm<100){
 		force_vl53lxx=true;
 	}else{
@@ -485,18 +485,16 @@ void get_vl53lxx_data(uint16_t distance_mm){
 			return;
 		}
 	}
-	rangefinder_state.last_update_ms=HAL_GetTick();
-	if(get_gnss_state()){
-		enable_surface_track=false;
-	}else{
-		enable_surface_track=true;
-	}
 	if(distance_mm>0&&distance_mm<4000){//4m以下数据才可靠
+		rf_alt_raw=(float)distance_mm*0.1;
+		if(USE_ODOM_Z){
+			return;
+		}
 		Vector3f pos_offset=dcm_matrix*vl53lxx_offset;
 		if(!rangefinder_state.alt_healthy){
-			rangefinder_state.alt_cm_filt.reset((float)distance_mm*0.1);//重置滤波器
+			rangefinder_state.alt_cm_filt.reset(rf_alt_raw);//重置滤波器
 		}
-		rangefinder_state.alt_cm=rangefinder_state.alt_cm_filt.apply((float)distance_mm*0.1, (float)(HAL_GetTick()-rangefinder_state.last_healthy_ms)*0.001);
+		rangefinder_state.alt_cm=rangefinder_state.alt_cm_filt.apply(rf_alt_raw, (float)(HAL_GetTick()-rangefinder_state.last_healthy_ms)*0.001);
 		rangefinder_state.alt_cm=rangefinder_state.alt_cm*MAX(0.707f, dcm_matrix.c.z)+pos_offset.z;
 		rangefinder_state.last_healthy_ms=HAL_GetTick();
 		get_rangefinder_data=true;
@@ -508,6 +506,7 @@ void get_vl53lxx_data(uint16_t distance_mm){
 	}else{
 		rangefinder_state.alt_healthy=false;
 	}
+	rangefinder_state.last_update_ms=HAL_GetTick();
 }
 
 static Vector3f tf2mini_offset=Vector3f(0.0f, 0.0f, 0.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
@@ -516,24 +515,23 @@ void update_tf2mini_data(float dis){
 		rangefinder_state.alt_healthy=false;
 		return;
 	}
-	if(USE_ODOM_Z){
-		return;
-	}
 	if(force_vl53lxx){
 		return;
 	}
-	rangefinder_state.last_update_ms=HAL_GetTick();
 	if(dis>3.0f&&dis<=750.0f){
 		use_tfmini=true;
+		rf_alt_raw=dis;
+		if(USE_ODOM_Z){
+			return;
+		}
 		Vector3f pos_offset=dcm_matrix*tf2mini_offset;
 		if(!rangefinder_state.alt_healthy){
-			rangefinder_state.alt_cm_filt.reset(dis);//重置滤波器
+			rangefinder_state.alt_cm_filt.reset(rf_alt_raw);//重置滤波器
 		}
-		rangefinder_state.alt_cm=rangefinder_state.alt_cm_filt.apply(dis, (float)(HAL_GetTick()-rangefinder_state.last_healthy_ms)*0.001);
+		rangefinder_state.alt_cm=rangefinder_state.alt_cm_filt.apply(rf_alt_raw, (float)(HAL_GetTick()-rangefinder_state.last_healthy_ms)*0.001);
 		rangefinder_state.alt_cm=rangefinder_state.alt_cm*MAX(0.707f, dcm_matrix.c.z)+pos_offset.z;
 		rangefinder_state.last_healthy_ms=HAL_GetTick();
 		get_rangefinder_data=true;
-		enable_surface_track=true;
 		if(dis>100.0f){
 			rangefinder_state.enabled=true;
 		}
@@ -545,18 +543,20 @@ void update_tf2mini_data(float dis){
 		}
 		rangefinder_state.alt_healthy=false;
 	}
+	rangefinder_state.last_update_ms=HAL_GetTick();
 }
 
 #define flow_sample_num 5
-static float flow_alt, flow_bf_x, flow_bf_y;
-static Vector3f flow_gyro_offset, vel_ned_acc_last;
-static Vector2f flow_vel, flow_vel_delta, flow_vel_sample[flow_sample_num];
-static float flow_gain_x=-0.025, flow_gain_y=0.025, flow_gain_z=0.0025;
+static float flow_alt, flow_bf_x, flow_bf_y, flow_vel_std;
+static Vector3f flow_gyro_offset, vel_ned_acc_last, vel_ned_acc_buff[flow_sample_num];
+static Vector2f flow_vel, flow_vel_sam, flow_vel_sam_filt, flow_vel_dis, flow_vel_delta, flow_vel_sample[flow_sample_num];
+static float flow_gain_x=-0.0232, flow_gain_y=0.0232, flow_gain_zx=0.0008, flow_gain_zy=0.0008, flow_acc_gain=0.25;
 static uint8_t flow_sample_flag=0,flow_i_buff=0, flow_good_tick=0;
-static bool lose_flow=false;
+static int8_t flow_acc_sample_flag=0;
 static float ned_pos_x_buff[50], ned_pos_y_buff[50];
 static float flow_cutoff_freq=20.0f;
 static LowPassFilterVector2f _flow_filter;
+static uint8_t lose_flow=0;
 void opticalflow_update(void){
 #if USE_FLOW
 	if(rangefinder_state.alt_healthy){
@@ -564,13 +564,12 @@ void opticalflow_update(void){
 	}else{
 		flow_alt=get_pos_z()-takeoff_alt;//cm
 	}
-	flow_cutoff_freq=20.0f/constrain_float(flow_alt*0.01, 1.0f, 4.0f);
 	_flow_filter.set_cutoff_frequency(50,flow_cutoff_freq);
 	flow_alt=constrain_float(flow_alt, 3.0f, 200.0f);
 	if(lc302_data.quality==245){
 		flow_good_tick++;
-		if(flow_good_tick>20){
-			flow_good_tick=20;
+		if(flow_good_tick>5){
+			flow_good_tick=5;
 			opticalflow_state.healthy=true;
 		}
 		get_opticalflow=true;
@@ -585,6 +584,9 @@ void opticalflow_update(void){
 		vel_ned_acc_last=vel_ned_acc;
 		opticalflow_state.pos+=opticalflow_state.vel*opticalflow_state.flow_dt;
 		if(!get_gnss_state()||!USE_MAG){
+			if(robot_state==STATE_TAKEOFF||robot_state==STATE_FLYING){
+				param->alt_return.value=MIN(param->alt_return.value, 150.0f);
+			}
 			get_gnss_location=true;
 			ned_current_vel.x=opticalflow_state.vel.x;
 			ned_current_vel.y=opticalflow_state.vel.y;
@@ -597,51 +599,73 @@ void opticalflow_update(void){
 				flow_i_buff=0;
 			}
 		}
-		flow_sample_flag=0;
 		return;
 	}
 	//光流坐标系->机体坐标系//TODO:add gyro offset
-	flow_bf_x=(float)lc302_data.flow_y_integral*0.0001f+constrain_float(flow_gyro_offset.y*flow_gain_x*param->flow_gain.value.x, -0.2, 0.2);
-	flow_bf_y=-(float)lc302_data.flow_x_integral*0.0001f+constrain_float(flow_gyro_offset.x*flow_gain_y*param->flow_gain.value.y, -0.2, 0.2)+constrain_float(flow_gain_z*flow_gyro_offset.z*param->flow_gain.value.z, -0.2, 0.2);
+	flow_bf_x=(float)lc302_data.flow_y_integral*0.0001f+constrain_float(flow_gyro_offset.y*flow_gain_x*param->flow_gain.value.x, -0.2, 0.2)-constrain_float(flow_gain_zx*flow_gyro_offset.z*param->flow_gain.value.z, -0.2, 0.2);
+	flow_bf_y=-(float)lc302_data.flow_x_integral*0.0001f+constrain_float(flow_gyro_offset.x*flow_gain_y*param->flow_gain.value.y, -0.2, 0.2)+constrain_float(flow_gain_zy*flow_gyro_offset.z*param->flow_gain.value.z, -0.2, 0.2);
 //	usb_printf_dir("$%d %d;", lc302_data.flow_x_integral, (int16_t)(constrain_float(flow_gain_z*flow_gyro_offset.z*param->flow_gain.value.z, -0.2, 0.2)*10000));
 	//机体坐标系->大地坐标系
 	opticalflow_state.rads.x=flow_bf_x*ahrs_cos_yaw()-flow_bf_y*ahrs_sin_yaw();
 	opticalflow_state.rads.y=flow_bf_x*ahrs_sin_yaw()+flow_bf_y*ahrs_cos_yaw();
 	opticalflow_state.flow_dt=(float)lc302_data.integration_timespan*0.000001f;
-	flow_vel_delta.x=MAX(get_accel_ef().x*100*0.3,30.0f);
-	flow_vel_delta.y=MAX(get_accel_ef().y*100*0.3,30.0f);
-	flow_vel.x=constrain_float(opticalflow_state.rads.x*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.x-flow_vel_delta.x, opticalflow_state.vel.x+flow_vel_delta.x);
-	flow_vel.y=constrain_float(opticalflow_state.rads.y*flow_alt/opticalflow_state.flow_dt, opticalflow_state.vel.y-flow_vel_delta.y, opticalflow_state.vel.y+flow_vel_delta.y);
-	if(abs(flow_vel.length()-ekf_baro->vel_2d)>20.0f&&ekf_baro->vel_2d<40.0f&&!lose_flow){//奇异值
-		lose_flow=true;
-	}else{
-		if(flow_sample_flag<flow_sample_num){
-			flow_vel_sample[flow_sample_flag]=flow_vel;
-			_flow_filter.reset(flow_vel);
-		}else{
-			flow_vel_sample[flow_sample_flag%flow_sample_num]=flow_vel;
-			flow_vel.zero();
-			for(uint8_t i=0;i<flow_sample_num;i++){
-				flow_vel+=flow_vel_sample[i];
-			}
-			flow_vel*=1.0/flow_sample_num;
-		}
-		flow_sample_flag++;
-		if(flow_sample_flag==flow_sample_num*2){
-			flow_sample_flag=flow_sample_num;
-		}
-		opticalflow_state.vel=_flow_filter.apply(flow_vel);
-		vel_ned_acc_last=vel_ned_acc;
-		lose_flow=false;
-	}
-	if(lose_flow){
+	flow_vel_sam.x=opticalflow_state.rads.x*flow_alt/opticalflow_state.flow_dt;
+	flow_vel_sam.y=opticalflow_state.rads.y*flow_alt/opticalflow_state.flow_dt;
+	if(flow_sample_flag<flow_sample_num){
+		flow_vel_sam_filt=_flow_filter.apply(flow_vel_sam);
+		flow_vel_sample[flow_sample_flag]=flow_vel_sam_filt;
+		vel_ned_acc_buff[flow_sample_flag]=vel_ned_acc;
 		opticalflow_state.vel.x+=vel_ned_acc.x-vel_ned_acc_last.x;
 		opticalflow_state.vel.y+=vel_ned_acc.y-vel_ned_acc_last.y;
+		opticalflow_state.vel.x=(1-flow_acc_gain)*opticalflow_state.vel.x+flow_acc_gain*flow_vel_sam_filt.x;
+		opticalflow_state.vel.y=(1-flow_acc_gain)*opticalflow_state.vel.y+flow_acc_gain*flow_vel_sam_filt.y;
 		vel_ned_acc_last=vel_ned_acc;
+	}else{
+		flow_vel.zero();
+		for(uint8_t i=0;i<flow_sample_num;i++){
+			flow_vel+=flow_vel_sample[i];
+		}
+		flow_vel*=1.0/flow_sample_num;
+		flow_vel_std=0;
+		for(uint8_t i=0;i<flow_sample_num;i++){
+			flow_vel_dis=flow_vel_sample[i]-flow_vel;
+			flow_vel_std+=flow_vel_dis.length_squared();
+		}
+		flow_vel_std=safe_sqrt(flow_vel_std/flow_sample_num);
+		flow_vel_dis=flow_vel_sam-flow_vel;
+		flow_acc_sample_flag=flow_sample_flag%flow_sample_num-(flow_sample_num+1)/2;
+		if(flow_acc_sample_flag<0){
+			flow_acc_sample_flag+=flow_sample_num;
+		}
+		opticalflow_state.vel.x+=vel_ned_acc.x-vel_ned_acc_last.x;
+		opticalflow_state.vel.y+=vel_ned_acc.y-vel_ned_acc_last.y;
+		opticalflow_state.vel.x=(1-flow_acc_gain)*opticalflow_state.vel.x+flow_acc_gain*(flow_vel.x+vel_ned_acc.x-vel_ned_acc_buff[flow_acc_sample_flag].x);
+		opticalflow_state.vel.y=(1-flow_acc_gain)*opticalflow_state.vel.y+flow_acc_gain*(flow_vel.y+vel_ned_acc.y-vel_ned_acc_buff[flow_acc_sample_flag].y);
+		vel_ned_acc_buff[flow_sample_flag%flow_sample_num]=vel_ned_acc;
+		if(flow_vel_dis.length()<10*flow_vel_std||lose_flow>1){
+			flow_vel_delta.x=MAX(get_accel_ef().x*100*0.3,30.0f);
+			flow_vel_delta.y=MAX(get_accel_ef().y*100*0.3,30.0f);
+			flow_vel_sam.x=constrain_float(flow_vel_sam.x, opticalflow_state.vel.x-flow_vel_delta.x, opticalflow_state.vel.x+flow_vel_delta.x);
+			flow_vel_sam.y=constrain_float(flow_vel_sam.y, opticalflow_state.vel.y-flow_vel_delta.y, opticalflow_state.vel.y+flow_vel_delta.y);
+			flow_vel_sam_filt=_flow_filter.apply(flow_vel_sam);
+			flow_vel_sample[flow_sample_flag%flow_sample_num]=flow_vel_sam_filt;
+			lose_flow=0;
+		}else{//奇异值
+			flow_vel_sample[flow_sample_flag%flow_sample_num]=opticalflow_state.vel;
+			lose_flow++;
+		}
+		vel_ned_acc_last=vel_ned_acc;
+	}
+	flow_sample_flag++;
+	if(flow_sample_flag==flow_sample_num*2){
+		flow_sample_flag=flow_sample_num;
 	}
 	opticalflow_state.pos+=opticalflow_state.vel*opticalflow_state.flow_dt;
 //	usb_printf_dir("$%d %d;",(int16_t)flow_vel.y, (int16_t)flow_vel_sample[flow_sample_flag%10].y);
 	if(!get_gnss_state()||!USE_MAG){
+		if(robot_state==STATE_TAKEOFF||robot_state==STATE_FLYING){
+			param->alt_return.value=MIN(param->alt_return.value, 150.0f);
+		}
 		get_gnss_location=true;
 		ned_current_vel.x=opticalflow_state.vel.x;
 		ned_current_vel.y=opticalflow_state.vel.y;
@@ -1699,6 +1723,9 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				}
 				break;
 			case MAVLINK_MSG_ID_ATTITUDE:   // MAV ID: 30
+				if(USE_MAG){
+					break;
+				}
 				mavlink_msg_attitude_decode(msg_received, &attitude_mav);
 				yaw_map=wrap_PI(attitude_mav.yaw);  //rad 外部传入的偏航角必须z轴向下的弧度角,即NED或FRD坐标系
 				if(time_last_attitude==0){
@@ -1711,6 +1738,9 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				}
 				break;
 			case MAVLINK_MSG_ID_LOCAL_POSITION_NED:       // MAV ID: 32
+				if(!USE_ODOMETRY){
+					break;
+				}
 				mavlink_msg_local_position_ned_decode(msg_received, &local_position_ned);
 				odom_offset=dcm_matrix*lidar_offset;
 				odom_3d.x=local_position_ned.x * 100.0f-odom_offset.x;  //cm 外部定位必须是NED或者FRD坐标系,如果是FRD坐标还需要禁用磁罗盘。
@@ -1759,6 +1789,9 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				get_odom_time=HAL_GetTick();
 				break;
 			case MAVLINK_MSG_ID_LOCAL_POSITION_NED_COV:       // MAV ID: 64
+				if(!USE_ODOMETRY){
+					break;
+				}
 				mavlink_msg_local_position_ned_cov_decode(msg_received, &local_position_ned_cov);
 				odom_offset=dcm_matrix*lidar_offset;
 				odom_3d.x=local_position_ned_cov.x * 100.0f-odom_offset.x;  //cm 外部定位必须是NED或者FRD坐标系,如果是FRD坐标还需要禁用磁罗盘。
@@ -1816,6 +1849,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				case MAV_FRAME_MISSION:
 					if(offboard_connected){
 						use_gcs_target=false;
+						get_ego_mission=true;
 						set_goal_point.time_boot_ms=HAL_GetTick();
 						set_goal_point.x=set_position_target_local_ned.x;
 						set_goal_point.y=set_position_target_local_ned.y;
@@ -1829,6 +1863,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				default:
 					if(chan==gcs_channel){
 						use_gcs_target=true;
+						get_ego_mission=false;
 					}
 					if(use_gcs_target){
 						if(chan!=gcs_channel){
@@ -1879,7 +1914,7 @@ void send_mavlink_heartbeat_data(void){
 	mavlink_system.sysid=1;
 	mavlink_system.compid=MAV_COMP_ID_AUTOPILOT1;
 	heartbeat_send.type=param->robot_type.value;//机器人类型
-	heartbeat_send.system_status=param->motor_type.value;//电机类型
+	heartbeat_send.system_status=param->motor_type.value|robot_spec_mode<<4;//电机类型|细分模式
 	heartbeat_send.autopilot=robot_main_mode;//主模式
 	heartbeat_send.custom_mode=robot_sub_mode;//子模式
 	heartbeat_send.base_mode=0;
@@ -2002,6 +2037,7 @@ void send_mavlink_commond_ack(mavlink_channel_t chan, MAV_CMD mav_cmd, MAV_CMD_A
 static uint8_t accel_cali_num=0;
 static uint32_t takeoff_time=0;
 static int8_t a8_yaw_rate=0,a8_pitch_rate=0;
+static float a8_yaw_angle=0,a8_pitch_angle=0;
 void send_mavlink_data(mavlink_channel_t chan)
 {
 	uint32_t time=HAL_GetTick();
@@ -2190,7 +2226,13 @@ void distribute_mavlink_data(void){
 		}else{
 			a8_pitch_rate=100*(get_channel_12()-0.6)/0.4;
 		}
-		set_a8mini_yp_rate(a8_yaw_rate, a8_pitch_rate, MAVLINK_COMM_4);
+		a8_yaw_angle+=(float)a8_yaw_rate*0.5;
+		a8_pitch_angle+=(float)a8_pitch_rate*0.5;
+		a8_yaw_angle=constrain_float(a8_yaw_angle, -1350, 1350);
+		a8_pitch_angle=constrain_float(a8_pitch_angle, -900, 250);
+//		usb_printf("y:%f|%f\n",a8_yaw_angle,a8_pitch_angle);
+		set_a8mini_yp_angle((int16_t)a8_yaw_angle, (int16_t)a8_pitch_angle, MAVLINK_COMM_4);
+//		set_a8mini_yp_rate(a8_yaw_rate, a8_pitch_rate, MAVLINK_COMM_4);
 	}
 #endif
 }
@@ -2617,16 +2659,6 @@ void rc_range_init(void){
 	rc_range_max[1]=(float)param->channel_range.channel[5];
 	rc_range_max[2]=(float)param->channel_range.channel[6];
 	rc_range_max[3]=(float)param->channel_range.channel[7];
-	for(uint8_t i=0;i<4;i++){
-		if(rc_range_min[i]<900||rc_range_min[i]>1100){
-			rc_range_min[i]=1100;
-		}
-	}
-	for(uint8_t i=0;i<4;i++){
-		if(rc_range_max[i]<1900||rc_range_max[i]>2000){
-			rc_range_max[i]=1900;
-		}
-	}
 	rc_range_cal();
 }
 
@@ -2950,7 +2982,7 @@ void update_mag_data(void){
 						  param->mag_offdiagonals.value.y,  param->mag_offdiagonals.value.z,  param->mag_diagonals.value.z};
 	mag_correct=mag_softiron*(mag+param->mag_offsets.value);
 //	usb_printf("mag:%f|%f|%f|%f|%f|%f\n",param->mag_diagonals.value.x,param->mag_diagonals.value.y,param->mag_diagonals.value.z,param->mag_offdiagonals.value.x,param->mag_offdiagonals.value.y,param->mag_offdiagonals.value.z);
-
+//	usb_printf("mag:%f|%f|%f\n",mag.x,mag.y,mag.z);
 	if(is_equal(param->mag_offsets.value.x,0.0f)||is_equal(param->mag_offsets.value.y,0.0f)||is_equal(param->mag_offsets.value.z,0.0f)){
 		return;
 	}
@@ -3165,6 +3197,7 @@ static uint32_t gnss_last_update_time=0;
 static Vector2f gnss_sample_2d, ned_sample_2d_last;
 static uint8_t gnss_stabilize=0;
 static Vector3f gnss_gyro_offset, ned_pos, ned_vel;
+static float gnss_update_dt=0.0f;
 bool get_gnss_stabilize(void){
 	return gnss_stabilize==10;
 }
@@ -3177,6 +3210,7 @@ void gnss_update(void){
 	if(get_gnss_update_ms()==gnss_last_update_time){
 		return;
 	}else{
+		gnss_update_dt=(get_gnss_update_ms()-gnss_last_update_time)*0.001;
 		gnss_last_update_time=get_gnss_update_ms();
 	}
 	if(get_gnss_state()){
@@ -3217,7 +3251,13 @@ void gnss_update(void){
 //		usb_printf_dir("$%d %d;", (int16_t)(ned_current_vel.y), (int16_t)(gnss_gyro_offset.x*25));
 //		usb_printf_dir("$%d %d;", (int16_t)(ned_current_vel.x),(int16_t)(ned_current_vel.y));
 		if(USE_MAG){
-			ned_current_pos=ned_pos;
+			if(robot_state==STATE_STOP){
+				ned_current_pos=ned_pos;
+			}else{
+				ned_current_pos+=ned_vel*gnss_update_dt;
+				ned_current_pos+=(ned_pos-ned_current_pos)*0.01;
+			}
+//			ned_current_pos=ned_pos;
 			ned_current_vel=ned_vel;
 			get_gnss_location=true;
 		}else{
@@ -3729,9 +3769,9 @@ float get_surface_tracking_climb_rate(float target_rate, float current_alt_targe
 	if(target_rangefinder_alt > param->alt_return.value){//不允许飞机飞到超过巡航高度
 		target_rangefinder_alt=param->alt_return.value;
 		hit_target_rangefinder_alt=false;
-	}
-	if(rangefinder_state.alt_cm>param->alt_return.value&&target_rate>0.0f){
-		target_rate=0.0f;
+		if(target_rate>0.0f){
+			target_rate=0.0f;
+		}
 	}
     if (rangefinder_state.glitch_count != 0) {
         // we are currently glitching, just use the target rate
@@ -4074,6 +4114,9 @@ static void update_land_detector(void)
 //	if((get_vel_z()<0)&&(ekf_baro->vel_2d<100)&&(pos_control->get_desired_velocity().z<0)&&(get_vib_value()>param->vib_land.value)&&(motors->get_throttle()<motors->get_throttle_hover())&&(!motors->limit.throttle_lower)){//TODO:降落时防止弹起来
 //		disarm_motors();
 //	}
+	if(USE_ODOM_Z&&rf_alt_raw>1.0f&&rf_alt_raw<param->landing_lock_alt.value&&get_vel_z()<0&&pos_control->get_desired_velocity().z<0){
+		disarm_motors();
+	}
 	//******************落地后ls*********************
 
     // land detector can not use the following sensors because they are unreliable during landing
@@ -4170,10 +4213,9 @@ static void update_throttle_thr_mix()
 void throttle_loop(void){
 	float ch5=get_channel_5();
 	if(ch5>=0.7&&ch5<=1.0){
-		use_rangefinder=false;
-		set_gnss_state(false);
+		enable_surface_track=false;
 	}else{
-		use_rangefinder=true;
+		enable_surface_track=true;
 	}
 	// update estimated throttle required to hover
 	update_throttle_hover();

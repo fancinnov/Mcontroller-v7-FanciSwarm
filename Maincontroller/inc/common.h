@@ -201,7 +201,7 @@
 #define ACRO_YAW_P 1.5f
 #define MAN_THR_FILT_HZ 0.5f
 #define LOWBATT_RETURN_VOLT 0.0f
-#define LOWBATT_LAND_VOLT 6.8f
+#define LOWBATT_LAND_VOLT 6.6f
 #define POSHOLD_VEL_MAX 100.0f		//1m/s
 #define POSHOLD_ACCEL_MAX 100.0f	//1m/ss
 #define MISSION_VEL_MAX 100.0f		//1m/s
@@ -325,6 +325,7 @@ float get_mav_yaw_target(void);
 float get_mav_yaw_rate_target(void);
 bool get_mav_target_state(void);
 void reset_mav_target_state(void);
+bool use_ego_mission(void);
 
 float get_vib_value(void);
 float get_vib_angle_z(void);
@@ -340,6 +341,7 @@ float get_channel_pitch_angle(void);
 float get_channel_yaw_angle(void);
 
 void set_a8mini_yp_rate(int8_t yaw_rate, int8_t pitch_rate, mavlink_channel_t chan);//rate -100~100
+void set_a8mini_yp_angle(int16_t yaw_angle, int16_t pitch_angle, mavlink_channel_t chan);//angle*10
 
 typedef enum{
 	LOG_CAT = 0,
@@ -510,6 +512,13 @@ typedef enum {
 	MODE_UGV_P
 }ROBOT_SUB_MODE;
 extern ROBOT_SUB_MODE robot_sub_mode;
+
+typedef enum {
+	MODE_ATTITUDE=0,
+	MODE_POSITION,
+	MODE_AUTO
+}ROBOT_SPEC_MODE;
+extern ROBOT_SPEC_MODE robot_spec_mode;
 
 typedef struct{
 	// @Param: acro_y_expo

@@ -13,6 +13,7 @@ ROBOT_STATE robot_state=STATE_NONE;
 ROBOT_STATE robot_state_desired=STATE_NONE;
 ROBOT_MAIN_MODE robot_main_mode=MODE_AIR;
 ROBOT_SUB_MODE robot_sub_mode=MODE_STABILIZE;
+ROBOT_SPEC_MODE robot_spec_mode=MODE_ATTITUDE;
 uint8_t a8mini_data[256];
 
 bool get_soft_armed(void){
@@ -167,6 +168,27 @@ void set_a8mini_yp_rate(int8_t yaw_rate, int8_t pitch_rate, mavlink_channel_t ch
 	//CRC16
 	uint16_t len=10;
 	*(uint16_t *)&a8mini_data[10]=CRC16_cal(a8mini_data, len, 0);
+	//send
+	comm_send_buf(chan, a8mini_data, len+2);
+}
+
+void set_a8mini_yp_angle(int16_t yaw_angle, int16_t pitch_angle, mavlink_channel_t chan){
+	a8mini_data[0]=0x55;//STX
+	a8mini_data[1]=0x66;
+	a8mini_data[2]=0x01;//CTRL
+	a8mini_data[3]=0x04;//LEN
+	a8mini_data[4]=0x00;
+	a8mini_data[5]=0x00;//SEQ
+	a8mini_data[6]=0x00;
+	a8mini_data[7]=0x0E;//CMD
+	//DATA
+	a8mini_data[8]=yaw_angle&0xFF;//yaw_angle -135.0~135.0
+	a8mini_data[9]=yaw_angle>>8;
+	a8mini_data[10]=pitch_angle&0xFF;//pitch_rate -90.0~25.0
+	a8mini_data[11]=pitch_angle>>8;
+	//CRC16
+	uint16_t len=12;
+	*(uint16_t *)&a8mini_data[12]=CRC16_cal(a8mini_data, len, 0);
 	//send
 	comm_send_buf(chan, a8mini_data, len+2);
 }

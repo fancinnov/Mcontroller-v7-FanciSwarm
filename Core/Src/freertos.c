@@ -325,6 +325,7 @@ void InitTask(void *argument)
   MAG_Init();
   while(BARO_Init());
   vl53lxx_init();
+  MAG2_Init();
   tf2mini_init();
   motors_init();
   attitude_init();

@@ -195,11 +195,13 @@ void mode_autonav(void){
 
 		// call attitude controller
 		if(ch7>=0.7&&ch7<=1.0){//姿态模式
+			robot_spec_mode=MODE_ATTITUDE;
 			target_yaw+=target_yaw_rate*_dt;
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			pos_control->set_xy_target(get_pos_x(), get_pos_y());
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		}else{//位置模式
+			robot_spec_mode=MODE_POSITION;
 			target_yaw+=target_yaw_rate*_dt;
 			get_accel_vel_limit();
 			pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
@@ -254,11 +256,13 @@ void mode_autonav(void){
 		}
 
 		if(ch7>=0.7&&ch7<=1.0){//姿态模式
+			robot_spec_mode=MODE_ATTITUDE;
 			target_yaw+=target_yaw_rate*_dt;
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			pos_control->set_xy_target(get_pos_x(), get_pos_y());
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		}else if(ch7>0.3&&ch7<0.7){//位置模式
+			robot_spec_mode=MODE_POSITION;
 			target_yaw+=target_yaw_rate*_dt;
 			get_accel_vel_limit();
 			pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
@@ -282,6 +286,7 @@ void mode_autonav(void){
 				land_detect=0;
 			}
 		}else{//自主模式
+			robot_spec_mode=MODE_AUTO;
 			if((HAL_GetTick()-takeoff_time)<2000){
 				get_accel_vel_limit();
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
@@ -319,28 +324,15 @@ void mode_autonav(void){
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
 							break;
 						case MAV_FRAME_GLOBAL:
-							if(!get_first_pos){
-								ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
-								ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
-								get_first_pos=true;
-							}
-							if(reach_target_point){
-								ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
-								ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
-							}
-
+							ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
+							ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
 							ned_dis_2d.x=ned_target_pos.x-pos_control->get_pos_target().x;//重新计算当前目标与上一个目标点的距离
 							ned_dis_2d.y=ned_target_pos.y-pos_control->get_pos_target().y;
 							if(ned_dis_2d.length()>1.0f){
-								reach_target_point=false;
 								vel_desired=ned_dis_2d.normalized()*param->mission_vel_max.value;//设置跟踪速度
 								pos_control->shift_pos_xy_target(vel_desired.x*_dt, vel_desired.y*_dt);
 							}else{
-								ned_target_dis_2d.x=ned_target_pos.x-get_pos_x();
-								ned_target_dis_2d.y=ned_target_pos.y-get_pos_y();
-								if(ned_target_dis_2d.length()<50.0){//距离目标点小于50cm认为到达
-									reach_target_point=true;
-								}
+								pos_control->set_xy_target(ned_target_pos.x,ned_target_pos.y);
 							}
 							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
@@ -421,7 +413,9 @@ void mode_autonav(void){
 		}
 
 		// adjust climb rate using rangefinder
-		target_climb_rate = get_surface_tracking_climb_rate(target_climb_rate, pos_control->get_alt_target(), _dt);
+		if(!use_ego_mission()||USE_ODOM_Z){
+			target_climb_rate = get_surface_tracking_climb_rate(target_climb_rate, pos_control->get_alt_target(), _dt);
+		}
 
 		// call position controller
 		pos_control->set_alt_target_from_climb_rate_ff(target_climb_rate, _dt, false);

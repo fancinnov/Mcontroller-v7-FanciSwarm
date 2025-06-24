@@ -353,6 +353,7 @@ void IMU_Get_Data(void);
 //磁罗盘驱动
 void MAG_Init(void);
 void MAG_Get_Data(void);
+void MAG2_Init(void);
 void MAG2_Get_Data(void);
 
 //气压计驱动
