@@ -3313,8 +3313,8 @@ void uwb_position_update(void){
 }
 
 static uint32_t update_odom_time=0;
-static float odom_pos_x=0.0f, odom_pos_y=0.0f, odom_vel_x=0.0f, odom_vel_y=0.0f, odom_dt=0.0f;
-static float odom_vel_offset_x=0.0f, odom_vel_offset_y=0.0f;
+static float odom_pos_x=0.0f, odom_pos_y=0.0f, odom_vel_x=0.0f, odom_vel_y=0.0f, odom_dt=0.0f, odom_acc_gain=0.7f;
+static float odom_vel_offset_x=0.0f, odom_vel_offset_y=0.0f, odom_vel_x_acc=0.0f, odom_vel_y_acc=0.0f;
 static float odom_vel_x_buff[400], odom_vel_y_buff[400];
 static int16_t odom_vel_last_tick=0, odom_tc=0, odom_vel_tick=0;
 static bool odom_vel_init=false;
@@ -3395,8 +3395,12 @@ void ekf_odom_xy(void){
 			update_pos=false;
 		}
 	}
-	odom_vel_x=odom_vel_x_filter.apply(odom_vel_x_buff[odom_vel_tick]);
-	odom_vel_y=odom_vel_y_filter.apply(odom_vel_y_buff[odom_vel_tick]);
+	odom_vel_x_acc+=get_accel_ef_filt().x*100.0*0.0025;
+	odom_vel_y_acc+=get_accel_ef_filt().y*100.0*0.0025;
+	odom_vel_x_acc=odom_vel_x_acc*odom_acc_gain+odom_vel_x_buff[odom_vel_tick]*(1-odom_acc_gain);
+	odom_vel_y_acc=odom_vel_y_acc*odom_acc_gain+odom_vel_y_buff[odom_vel_tick]*(1-odom_acc_gain);
+	odom_vel_x=odom_vel_x_filter.apply(odom_vel_x_acc);
+	odom_vel_y=odom_vel_y_filter.apply(odom_vel_y_acc);
 //	usb_printf("x:%f|y:%f, %f|%f, %f|%f\n",odom_pos_x,odom_pos_y, odom_vel_x,odom_vel_y, odom_vel_offset_x, odom_vel_offset_y);
 	odom_vel_tick++;
 	if(odom_vel_tick==400){
@@ -4364,8 +4368,8 @@ void Logger_Cat_Callback(void){
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s ",//LOG_SENSOR
 			"t_ms", "accx", "accy", "accz", "gyrox", "gyroy", "gyroz");
 	osDelay(2);
-	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_SENSOR
-			"magx", "magy", "magz", "baro", "voltage", "current", "sat_num", "wind_x", "wind_y");
+	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_SENSOR
+			"magx", "magy", "magz", "baro", "voltage", "current", "sat_num", "wind_x", "wind_y", "flow_rx", "flow_ry");
 	osDelay(2);
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_EULER
 			"pitch_log", "roll_log", "yaw_log", "pitchd", "rolld", "yawd", "rtk_yawd", "lat_noi", "lon_noi", "alt_noi");
@@ -4419,8 +4423,8 @@ void Logger_Data_Callback(void){
 	sd_log_write("%8ld %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_SENSOR
 			HAL_GetTick(), get_accel_filt().x, get_accel_filt().y, get_accel_filt().z, get_gyro_filt().x, get_gyro_filt().y, get_gyro_filt().z);
 	osDelay(2);
-	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8d %8.3f %8.3f ",//LOG_SENSOR
-			get_mag_filt().x, get_mag_filt().y, get_mag_filt().z, spl06_data.baro_alt, get_batt_volt(), get_batt_current(), gps_position->satellites_used, ekf_wind->wind_x_filt, ekf_wind->wind_y_filt);
+	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8d %8.3f %8.3f %8.3f %8.3f ",//LOG_SENSOR
+			get_mag_filt().x, get_mag_filt().y, get_mag_filt().z, spl06_data.baro_alt, get_batt_volt(), get_batt_current(), gps_position->satellites_used, ekf_wind->wind_x_filt, ekf_wind->wind_y_filt, flow_vel_sam.x, flow_vel_sam.y);
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_EULER
 			pitch_log*RAD_TO_DEG, roll_log*RAD_TO_DEG, yaw_log*RAD_TO_DEG, ahrs_pitch_deg(), ahrs_roll_deg(), ahrs_yaw_deg(), gps_position->heading, gps_position->lat_noise, gps_position->lon_noise, gps_position->alt_noise);
