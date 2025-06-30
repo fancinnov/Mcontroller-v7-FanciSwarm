@@ -548,13 +548,13 @@ void update_tf2mini_data(float dis){
 
 #define flow_sample_num 5
 static float flow_alt, flow_bf_x, flow_bf_y, flow_vel_std;
-static Vector3f flow_gyro_offset, vel_ned_acc_last, vel_ned_acc_buff[flow_sample_num];
+static Vector3f flow_gyro_offset, vel_ned_acc_last;
 static Vector2f flow_vel, flow_vel_sam, flow_vel_sam_filt, flow_vel_dis, flow_vel_delta, flow_vel_sample[flow_sample_num];
 static float flow_gain_x=-0.0232, flow_gain_y=0.0232, flow_gain_zx=0.0008, flow_gain_zy=0.0008, flow_acc_gain=0.25;
 static uint8_t flow_sample_flag=0,flow_i_buff=0, flow_good_tick=0;
 static int8_t flow_acc_sample_flag=0;
 static float ned_pos_x_buff[50], ned_pos_y_buff[50];
-static float flow_cutoff_freq=20.0f;
+static float flow_cutoff_freq=5.0f;
 static LowPassFilterVector2f _flow_filter;
 static uint8_t lose_flow=0;
 void opticalflow_update(void){
@@ -614,7 +614,6 @@ void opticalflow_update(void){
 	if(flow_sample_flag<flow_sample_num){
 		flow_vel_sam_filt=_flow_filter.apply(flow_vel_sam);
 		flow_vel_sample[flow_sample_flag]=flow_vel_sam_filt;
-		vel_ned_acc_buff[flow_sample_flag]=vel_ned_acc;
 		opticalflow_state.vel.x+=vel_ned_acc.x-vel_ned_acc_last.x;
 		opticalflow_state.vel.y+=vel_ned_acc.y-vel_ned_acc_last.y;
 		opticalflow_state.vel.x=(1-flow_acc_gain)*opticalflow_state.vel.x+flow_acc_gain*flow_vel_sam_filt.x;
@@ -639,9 +638,6 @@ void opticalflow_update(void){
 		}
 		opticalflow_state.vel.x+=vel_ned_acc.x-vel_ned_acc_last.x;
 		opticalflow_state.vel.y+=vel_ned_acc.y-vel_ned_acc_last.y;
-		opticalflow_state.vel.x=(1-flow_acc_gain)*opticalflow_state.vel.x+flow_acc_gain*(flow_vel.x+vel_ned_acc.x-vel_ned_acc_buff[flow_acc_sample_flag].x);
-		opticalflow_state.vel.y=(1-flow_acc_gain)*opticalflow_state.vel.y+flow_acc_gain*(flow_vel.y+vel_ned_acc.y-vel_ned_acc_buff[flow_acc_sample_flag].y);
-		vel_ned_acc_buff[flow_sample_flag%flow_sample_num]=vel_ned_acc;
 		if(flow_vel_dis.length()<10*flow_vel_std||lose_flow>1){
 			flow_vel_delta.x=MAX(get_accel_ef().x*100*0.3,30.0f);
 			flow_vel_delta.y=MAX(get_accel_ef().y*100*0.3,30.0f);
@@ -654,6 +650,8 @@ void opticalflow_update(void){
 			flow_vel_sample[flow_sample_flag%flow_sample_num]=opticalflow_state.vel;
 			lose_flow++;
 		}
+		opticalflow_state.vel.x=(1-flow_acc_gain)*opticalflow_state.vel.x+flow_acc_gain*(flow_vel_sample[flow_sample_flag%flow_sample_num].x);
+		opticalflow_state.vel.y=(1-flow_acc_gain)*opticalflow_state.vel.y+flow_acc_gain*(flow_vel_sample[flow_sample_flag%flow_sample_num].y);
 		vel_ned_acc_last=vel_ned_acc;
 	}
 	flow_sample_flag++;
