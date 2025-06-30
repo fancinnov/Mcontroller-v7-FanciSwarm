@@ -25,6 +25,7 @@ static float landing_alt=0.0f;
 static float relative_alt=0.0f;
 static Vector2f goal_2d;
 static bool goal_reset=false, goal_set=false;
+static bool use_surface_track=true;
 bool mode_autonav_init(void){
 	if(motors->get_armed()){//电机未锁定,禁止切换至该模式
 		Buzzer_set_ring_type(BUZZER_ERROR);
@@ -308,13 +309,18 @@ void mode_autonav(void){
 						case MAV_FRAME_BODY_NED:
 							pos_control->set_pilot_desired_acceleration(get_mav_ax_roll_target(), get_mav_ay_pitch_target(), target_yaw, _dt);
 							pos_control->calc_desired_velocity(_dt);
+							relative_alt=get_mav_z_target();
 							break;
 						case MAV_FRAME_VISION_NED:
-							if(get_mav_x_target()!=0||get_mav_y_target()!=0){
+							if(get_mav_x_target()!=0.0f||get_mav_y_target()!=0.0f){
 								pos_control->set_xy_target(get_mav_x_target(),get_mav_y_target());
 							}
 							pos_control->set_desired_velocity_xy(get_mav_vx_target(), get_mav_vy_target());
 							pos_control->set_desired_accel_xy(get_mav_ax_target(), get_mav_ay_target());
+							if(get_mav_z_target()!=0.0f){
+								relative_alt=get_mav_z_target();
+							}
+							target_climb_rate=get_mav_vz_target();
 							break;
 						case MAV_FRAME_LOCAL_NED:
 							ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
@@ -322,6 +328,7 @@ void mode_autonav(void){
 							pos_control->set_xy_target(ned_target_pos.x,ned_target_pos.y);
 							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
+							relative_alt=get_mav_z_target();
 							break;
 						case MAV_FRAME_GLOBAL:
 							ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
@@ -336,11 +343,24 @@ void mode_autonav(void){
 							}
 							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
+							relative_alt=get_mav_z_target();
 							break;
 						default:
 							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
 							break;
+					}
+					if(relative_alt>=30.0f){
+						if(relative_alt<=200.0f&&rangefinder_state.alt_healthy&&use_surface_track){
+							if(robot_state_desired!=STATE_LANDED&&!execute_land){
+								set_target_rangefinder_alt(relative_alt);
+							}
+						}else{
+							if(robot_state_desired!=STATE_LANDED&&!execute_land){
+								set_target_rangefinder_alt(constrain_float(relative_alt,50.0f,param->alt_return.value));
+								pos_control->set_alt_target(constrain_float(relative_alt+landing_alt,50.0f,param->alt_return.value));
+							}
+						}
 					}
 				}else{
 					pos_control->set_desired_velocity_xy(0.0f, 0.0f);
@@ -371,23 +391,6 @@ void mode_autonav(void){
 				target_pitch=pos_control->get_pitch();
 				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
-				if(get_mav_vz_target()==0.0f){
-					relative_alt=get_mav_z_target();
-				}else{
-					target_climb_rate=get_mav_vz_target();
-				}
-				if(relative_alt>=30.0f){
-					if(relative_alt<=200.0f&&rangefinder_state.alt_healthy){
-						if(robot_state_desired!=STATE_LANDED&&!execute_land){
-							set_target_rangefinder_alt(relative_alt);
-						}
-					}else{
-						if(robot_state_desired!=STATE_LANDED&&!execute_land){
-							set_target_rangefinder_alt(constrain_float(relative_alt,50.0f,param->alt_return.value));
-							pos_control->set_alt_target(constrain_float(relative_alt+landing_alt,50.0f,param->alt_return.value));
-						}
-					}
-				}
 			}
 		}
 
@@ -415,6 +418,9 @@ void mode_autonav(void){
 		// adjust climb rate using rangefinder
 		if(!use_ego_mission()||USE_ODOM_Z){
 			target_climb_rate = get_surface_tracking_climb_rate(target_climb_rate, pos_control->get_alt_target(), _dt);
+			use_surface_track=true;
+		}else{
+			use_surface_track=false;
 		}
 
 		// call position controller

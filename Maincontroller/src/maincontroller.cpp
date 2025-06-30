@@ -1898,6 +1898,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 void send_mavlink_goal_point(float x, float y, float z){
 	if(offboard_connected){
 		use_gcs_target=false;
+		get_ego_mission=true;
 		set_goal_point.time_boot_ms=HAL_GetTick();
 		set_goal_point.x=x;
 		set_goal_point.y=y;
@@ -2071,7 +2072,11 @@ void send_mavlink_data(mavlink_channel_t chan)
 		global_attitude_position.x=get_pos_x();
 		global_attitude_position.y=get_pos_y();
 	}
-	global_attitude_position.z=get_pos_z();
+	if(USE_ODOM_Z){
+		global_attitude_position.z=rangefinder_state.alt_cm;
+	}else{
+		global_attitude_position.z=get_pos_z();
+	}
 	global_attitude_position.usec=time;
 	mavlink_msg_global_vision_position_estimate_encode(mavlink_system.sysid, mavlink_system.compid, &msg_global_attitude_position, &global_attitude_position);
 	mavlink_send_buffer(chan, &msg_global_attitude_position);
@@ -3329,8 +3334,8 @@ void ekf_odom_xy(void){
 			odom_vel_x_buff[i]=0.0f;
 			odom_vel_y_buff[i]=0.0f;
 		}
-		odom_vel_x_filter.set_cutoff_frequency(400, 10);
-		odom_vel_y_filter.set_cutoff_frequency(400, 10);
+		odom_vel_x_filter.set_cutoff_frequency(400, 5);
+		odom_vel_y_filter.set_cutoff_frequency(400, 5);
 		odom_vel_init=true;
 	}
 	if(USE_MOTION){
