@@ -575,6 +575,7 @@ void opticalflow_update(void){
 		get_opticalflow=true;
 	}else{
 		if(robot_state==STATE_STOP){
+			opticalflow_state.vel.zero();
 			return;
 		}
 		flow_good_tick=0;
