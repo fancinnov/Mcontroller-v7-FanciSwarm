@@ -2985,7 +2985,6 @@ void update_mag_data(void){
 						  param->mag_offdiagonals.value.x,  param->mag_diagonals.value.y,     param->mag_offdiagonals.value.z,
 						  param->mag_offdiagonals.value.y,  param->mag_offdiagonals.value.z,  param->mag_diagonals.value.z};
 	mag_correct=mag_softiron*(mag+param->mag_offsets.value);
-//	usb_printf("mag:%f|%f|%f|%f|%f|%f\n",param->mag_diagonals.value.x,param->mag_diagonals.value.y,param->mag_diagonals.value.z,param->mag_offdiagonals.value.x,param->mag_offdiagonals.value.y,param->mag_offdiagonals.value.z);
 //	usb_printf("mag:%f|%f|%f\n",mag.x,mag.y,mag.z);
 	if(is_equal(param->mag_offsets.value.x,0.0f)||is_equal(param->mag_offsets.value.y,0.0f)||is_equal(param->mag_offsets.value.z,0.0f)){
 		return;
@@ -2998,6 +2997,9 @@ void update_mag_data(void){
 	if(!initial_mag){
 		mag_filt=mag_correct;
 		_mag_filter.set_cutoff_frequency(100, mag_filt_hz);
+		usb_printf("mag-param:%f|%f|%f\n%f|%f|%f\n%f|%f|%f\n",param->mag_diagonals.value.x,param->mag_diagonals.value.y,param->mag_diagonals.value.z,
+				param->mag_offdiagonals.value.x,param->mag_offdiagonals.value.y,param->mag_offdiagonals.value.z,
+				param->mag_offsets.value.x, param->mag_offsets.value.y, param->mag_offsets.value.z);
 		initial_mag=true;
 	}else{
 		if(robot_state==STATE_TAKEOFF||robot_state==STATE_LANDED){//起飞时禁用磁罗盘

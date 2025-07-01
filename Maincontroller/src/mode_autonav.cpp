@@ -10,10 +10,8 @@ static float target_yaw=0.0f;
 static bool jump=true;
 static bool use_gcs=false, use_rc=false;
 static bool execute_land=false;
-static bool reach_target_point=false;
 static Vector3f ned_target_pos;
 static Vector2f ned_target_dis_2d, ned_dis_2d, vel_desired;
-static bool get_first_pos=false;
 static uint32_t takeoff_time=0, lock_time=0, safe_time=0;
 static float yaw_delta=0.0f;
 static float jump_alt=0.0f;
@@ -350,16 +348,12 @@ void mode_autonav(void){
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
 							break;
 					}
-					if(relative_alt>=30.0f){
-						if(relative_alt<=200.0f&&rangefinder_state.alt_healthy&&use_surface_track){
-							if(robot_state_desired!=STATE_LANDED&&!execute_land){
-								set_target_rangefinder_alt(relative_alt);
-							}
-						}else{
-							if(robot_state_desired!=STATE_LANDED&&!execute_land){
-								set_target_rangefinder_alt(constrain_float(relative_alt,50.0f,param->alt_return.value));
-								pos_control->set_alt_target(constrain_float(relative_alt+landing_alt,50.0f,param->alt_return.value));
-							}
+					if(relative_alt>=30.0f&&robot_state_desired!=STATE_LANDED&&!execute_land){
+						if(use_surface_track){
+							set_target_rangefinder_alt(relative_alt);
+						}
+						if(!rangefinder_state.alt_healthy||!use_surface_track){
+							pos_control->set_alt_target(relative_alt+landing_alt);
 						}
 					}
 				}else{
