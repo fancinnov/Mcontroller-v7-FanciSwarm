@@ -1798,6 +1798,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				odom_3d.x=local_position_ned_cov.x * 100.0f-odom_offset.x;  //cm 外部定位必须是NED或者FRD坐标系,如果是FRD坐标还需要禁用磁罗盘。
 				odom_3d.y=local_position_ned_cov.y * 100.0f-odom_offset.y;  //cm
 				if(USE_ODOM_Z){
+					ekf_baro->use_odom_z=true;
 					odom_3d.z=-local_position_ned_cov.z * 100.0f; //cm
 					odom_dz=odom_3d.z-odom_z_last;
 					if(USE_MOTION){

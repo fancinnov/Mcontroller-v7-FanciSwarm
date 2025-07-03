@@ -20,6 +20,7 @@ public:
 	float pos_z=0, vel_z=0, vel_2d=0, accel_2d=0, accelz_ef=0;
 	float get_vt(void){return vt_last;}
 	bool is_initialed(void){return initialed;}
+	bool use_odom_z=false;
 	void reset(void){
 		initialed_fusion=false;
 		initialed=false;
