@@ -3322,8 +3322,8 @@ void uwb_position_update(void){
 }
 
 static uint32_t update_odom_time=0;
-static float odom_pos_x=0.0f, odom_pos_y=0.0f, odom_vel_x=0.0f, odom_vel_y=0.0f, odom_dt=0.0f, odom_acc_gain=0.7f;
-static float odom_vel_offset_x=0.0f, odom_vel_offset_y=0.0f, odom_vel_x_acc=0.0f, odom_vel_y_acc=0.0f;
+static float odom_pos_x=0.0f, odom_pos_y=0.0f, odom_vel_x=0.0f, odom_vel_y=0.0f, odom_dt=0.0f, odom_acc_gain=0.25f;
+static float odom_vel_x_acc=0.0f, odom_vel_y_acc=0.0f, odom_vel_x_raw=0.0f, odom_vel_y_raw=0.0f;
 static float odom_vel_x_buff[400], odom_vel_y_buff[400];
 static int16_t odom_vel_last_tick=0, odom_tc=0, odom_vel_tick=0;
 static bool odom_vel_init=false;
@@ -3338,20 +3338,21 @@ void ekf_odom_xy(void){
 			odom_vel_x_buff[i]=0.0f;
 			odom_vel_y_buff[i]=0.0f;
 		}
-		odom_vel_x_filter.set_cutoff_frequency(400, 5);
-		odom_vel_y_filter.set_cutoff_frequency(400, 5);
+		odom_vel_x_filter.set_cutoff_frequency(2.0f);
+		odom_vel_y_filter.set_cutoff_frequency(2.0f);
+		if(USE_MOTION){
+			odom_tc=400*constrain_float(motion_tc, 0.0, 1.0);
+			odom_dt=constrain_float(motion_dt,0.05,0.2);
+		}else if(USE_VINS){
+			odom_tc=400*constrain_float(vins_tc, 0.0, 1.0);
+			odom_dt=constrain_float(vins_dt,0.05,0.2);
+		}else{
+			odom_tc=400*constrain_float(lidar_tc, 0.0, 1.0);
+			odom_dt=constrain_float(lidar_dt,0.05,0.2);
+		}
 		odom_vel_init=true;
 	}
-	if(USE_MOTION){
-		odom_tc=400*constrain_float(motion_tc, 0.0, 1.0);
-		odom_dt=constrain_float(motion_dt,0.05,0.2);
-	}else if(USE_VINS){
-		odom_tc=400*constrain_float(vins_tc, 0.0, 1.0);
-		odom_dt=constrain_float(vins_dt,0.05,0.2);
-	}else{
-		odom_tc=400*constrain_float(lidar_tc, 0.0, 1.0);
-		odom_dt=constrain_float(lidar_dt,0.05,0.2);
-	}
+
 	if(odom_3d.x==0&&odom_3d.y==0){
 		return;
 	}
@@ -3363,6 +3364,8 @@ void ekf_odom_xy(void){
 		odom_vel_y_buff[odom_vel_tick]=odom_vel_y_buff[odom_vel_tick-1]+get_accel_ef_filt().y*100.0*0.0025;
 	}
 	update_pos=true;
+	odom_vel_x_acc+=get_accel_ef_filt().x*100.0*0.0025;
+	odom_vel_y_acc+=get_accel_ef_filt().y*100.0*0.0025;
 	if(get_odom_xy){
 //		usb_printf("dt:%f|%ld",odom_dt,HAL_GetTick());
 		update_odom_time=HAL_GetTick();
@@ -3370,46 +3373,34 @@ void ekf_odom_xy(void){
 		if(odom_vel_last_tick<0){
 			odom_vel_last_tick+=400;
 		}
-		odom_vel_x=odom_dx/odom_dt;
-		odom_vel_y=odom_dy/odom_dt;
+		odom_vel_x_raw=odom_vel_x_filter.apply(odom_dx/odom_dt+odom_vel_x_buff[odom_vel_tick]-odom_vel_x_buff[odom_vel_last_tick], odom_dt);
+		odom_vel_y_raw=odom_vel_y_filter.apply(odom_dy/odom_dt+odom_vel_y_buff[odom_vel_tick]-odom_vel_y_buff[odom_vel_last_tick], odom_dt);
 		if(USE_MOTION){
-			odom_pos_x=odom_3d.x+odom_vel_x*motion_tc;
-			odom_pos_y=odom_3d.y+odom_vel_y*motion_tc;
+			odom_pos_x=odom_3d.x+odom_vel_x_raw*motion_tc;
+			odom_pos_y=odom_3d.y+odom_vel_y_raw*motion_tc;
 		}else if(USE_VINS){
-			odom_pos_x=odom_3d.x+odom_vel_x*vins_tc;
-			odom_pos_y=odom_3d.y+odom_vel_y*vins_tc;
+			odom_pos_x=odom_3d.x+odom_vel_x_raw*vins_tc;
+			odom_pos_y=odom_3d.y+odom_vel_y_raw*vins_tc;
 		}else{
-			odom_pos_x=odom_3d.x+odom_vel_x*lidar_tc;
-			odom_pos_y=odom_3d.y+odom_vel_y*lidar_tc;
-		}
-		odom_vel_offset_x=odom_vel_x-odom_vel_x_buff[odom_vel_last_tick];
-		odom_vel_offset_y=odom_vel_y-odom_vel_y_buff[odom_vel_last_tick];
-		if(robot_state==STATE_FLYING||robot_state==STATE_TAKEOFF){
-			float accel_limit=MAX(pos_control->get_accel_xy(),100.0f);
-			odom_vel_offset_x=constrain_float(odom_vel_offset_x, -accel_limit*odom_dt*2, accel_limit*odom_dt*2);
-			odom_vel_offset_y=constrain_float(odom_vel_offset_y, -accel_limit*odom_dt*2, accel_limit*odom_dt*2);
-		}
-		for(uint16_t i=0;i<=odom_tc;i++){
-			if((i+odom_vel_last_tick)>=400){
-				odom_vel_x_buff[i+odom_vel_last_tick-400]+=odom_vel_offset_x;
-				odom_vel_y_buff[i+odom_vel_last_tick-400]+=odom_vel_offset_y;
-			}else{
-				odom_vel_x_buff[i+odom_vel_last_tick]+=odom_vel_offset_x;
-				odom_vel_y_buff[i+odom_vel_last_tick]+=odom_vel_offset_y;
-			}
+			odom_pos_x=odom_3d.x+odom_vel_x_raw*lidar_tc;
+			odom_pos_y=odom_3d.y+odom_vel_y_raw*lidar_tc;
 		}
 	}else{
+		odom_vel_x_raw+=get_accel_ef_filt().x*100.0*0.0025;
+		odom_vel_y_raw+=get_accel_ef_filt().y*100.0*0.0025;
 		if(HAL_GetTick()-update_odom_time>1000&&robot_state==STATE_STOP){//未起飞且定位源失效
 			ekf_odometry->reset();
 			update_pos=false;
+			odom_vel_x_acc=0.0f;
+			odom_vel_y_acc=0.0f;
+			odom_vel_x_raw=0.0f;
+			odom_vel_y_raw=0.0f;
 		}
 	}
-	odom_vel_x_acc+=get_accel_ef_filt().x*100.0*0.0025;
-	odom_vel_y_acc+=get_accel_ef_filt().y*100.0*0.0025;
-	odom_vel_x_acc=odom_vel_x_acc*odom_acc_gain+odom_vel_x_buff[odom_vel_tick]*(1-odom_acc_gain);
-	odom_vel_y_acc=odom_vel_y_acc*odom_acc_gain+odom_vel_y_buff[odom_vel_tick]*(1-odom_acc_gain);
-	odom_vel_x=odom_vel_x_filter.apply(odom_vel_x_acc);
-	odom_vel_y=odom_vel_y_filter.apply(odom_vel_y_acc);
+	odom_vel_x_acc=odom_vel_x_acc*odom_acc_gain+odom_vel_x_raw*(1-odom_acc_gain);
+	odom_vel_y_acc=odom_vel_y_acc*odom_acc_gain+odom_vel_y_raw*(1-odom_acc_gain);
+	odom_vel_x=odom_vel_x_acc;
+	odom_vel_y=odom_vel_y_acc;
 //	usb_printf("x:%f|y:%f, %f|%f, %f|%f\n",odom_pos_x,odom_pos_y, odom_vel_x,odom_vel_y, odom_vel_offset_x, odom_vel_offset_y);
 	odom_vel_tick++;
 	if(odom_vel_tick==400){
@@ -4386,8 +4377,8 @@ void Logger_Cat_Callback(void){
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_ACCEL_EARTH_FRAME and VIB
 			"gyrox_t", "gyroy_t", "gyroz_t", "efx", "efy", "efz", "vib_vl", "vib_ag");
 	osDelay(2);
-	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_POS_Z
-			"barofilt", "alt_t", "pos_z", "vel_z_t", "vel_z", "rf_alt", "rf_alt_t", "rtk_alt", "rtk_velz");
+	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_POS_Z
+			"rf_raw", "barofilt", "alt_t", "pos_z", "vel_z_t", "vel_z", "rf_alt", "rf_alt_t", "rtk_alt", "rtk_velz");
 	osDelay(2);
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_POS_XY
 			"vt_z","flow_vx", "ned_x", "ned_vx", "pos_x", "vel_x", "flow_vy", "ned_y", "ned_vy", "pos_y", "vel_y");
@@ -4441,8 +4432,8 @@ void Logger_Data_Callback(void){
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_ACCEL_EARTH_FRAME and VIB
 			attitude->rate_bf_targets().x, attitude->rate_bf_targets().y, attitude->rate_bf_targets().z, get_accel_ef().x, get_accel_ef().y, get_accel_ef().z, get_vib_value(), get_vib_angle_z());
 	osDelay(2);
-	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_POS_Z
-			get_baroalt_filt(), pos_control->get_pos_target().z, get_pos_z(), pos_control->get_vel_target_z(), get_vel_z(), get_rangefinder_alt(), get_rangefinder_alt_target(), -get_ned_pos_z(), -get_ned_vel_z());
+	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_POS_Z
+			rf_alt_raw, get_baroalt_filt(), pos_control->get_pos_target().z, get_pos_z(), pos_control->get_vel_target_z(), get_vel_z(), get_rangefinder_alt(), get_rangefinder_alt_target(), -get_ned_pos_z(), -get_ned_vel_z());
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//LOG_POS_XY
 			ekf_baro->get_vt(), opticalflow_state.vel.x, get_ned_pos_x(), get_ned_vel_x(), get_pos_x(), get_vel_x(), opticalflow_state.vel.y, get_ned_pos_y(), get_ned_vel_y(), get_pos_y(), get_vel_y());
