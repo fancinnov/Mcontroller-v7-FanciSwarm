@@ -854,6 +854,14 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 			case MAVLINK_MSG_ID_COMMAND_LONG:
 				mavlink_msg_command_long_decode(msg_received, &cmd);
 				switch(cmd.command){
+					case MAV_CMD_IMAGE_START_CAPTURE:
+						set_a8mini_camera(0, MAVLINK_COMM_3);
+						send_mavlink_commond_ack(chan, MAV_CMD_IMAGE_START_CAPTURE, MAV_CMD_ACK_OK);
+						break;
+					case MAV_CMD_VIDEO_START_CAPTURE:
+						set_a8mini_camera(2, MAVLINK_COMM_3);
+						send_mavlink_commond_ack(chan, MAV_CMD_VIDEO_START_CAPTURE, MAV_CMD_ACK_OK);
+						break;
 					case MAV_CMD_NAV_TAKEOFF:
 						set_takeoff();
 						send_mavlink_commond_ack(chan, MAV_CMD_NAV_TAKEOFF, MAV_CMD_ACK_OK);
@@ -1897,7 +1905,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 	}
 }
 
-void send_mavlink_goal_point(float x, float y, float z){
+void send_mavlink_goal_point(float x, float y, float z){//(单位m)
 	if(offboard_connected){
 		use_gcs_target=false;
 		get_ego_mission=true;
@@ -2238,7 +2246,8 @@ void distribute_mavlink_data(void){
 		a8_yaw_angle=constrain_float(a8_yaw_angle, -1350, 1350);
 		a8_pitch_angle=constrain_float(a8_pitch_angle, -900, 250);
 //		usb_printf("y:%f|%f\n",a8_yaw_angle,a8_pitch_angle);
-		set_a8mini_yp_angle((int16_t)a8_yaw_angle, (int16_t)a8_pitch_angle, MAVLINK_COMM_4);
+		set_a8mini_yp_angle((int16_t)a8_yaw_angle, (int16_t)a8_pitch_angle, MAVLINK_COMM_3);
+		Servo_Set_Value(1,1500-0.7*constrain_float(a8_pitch_angle, -900, 0));
 //		set_a8mini_yp_rate(a8_yaw_rate, a8_pitch_rate, MAVLINK_COMM_4);
 	}
 #endif
@@ -2673,6 +2682,8 @@ void motors_init(void){
 	Motors::motor_frame_class frame_class;
 	Motors::motor_frame_type frame_type;
 	Motors::motor_pwm_type motor_type;
+	param->robot_type.value=UAV_4_X;
+	param->motor_type.value=ESC;
 	switch(param->robot_type.value){
 	case UAV_8_H:
 		frame_class=Motors::MOTOR_FRAME_OCTAQUAD;

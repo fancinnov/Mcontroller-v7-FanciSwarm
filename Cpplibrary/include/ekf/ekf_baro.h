@@ -21,6 +21,7 @@ public:
 	float get_vt(void){return vt_last;}
 	bool is_initialed(void){return initialed;}
 	bool use_odom_z=false;
+	float gravity=GRAVITY_MSS;
 	void reset(void){
 		initialed_fusion=false;
 		initialed=false;

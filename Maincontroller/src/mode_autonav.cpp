@@ -375,7 +375,7 @@ void mode_autonav(void){
 					}
 				}else if(stick<0.1f){
 					if(goal_set){
-						send_mavlink_goal_point(goal_2d.x, goal_2d.y, 0.0f);
+						send_mavlink_goal_point(goal_2d.x, goal_2d.y, get_rangefinder_alt_target()*0.01f);
 					}
 					goal_reset=true;
 					goal_set=false;

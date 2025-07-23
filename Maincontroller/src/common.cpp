@@ -192,3 +192,32 @@ void set_a8mini_yp_angle(int16_t yaw_angle, int16_t pitch_angle, mavlink_channel
 	//send
 	comm_send_buf(chan, a8mini_data, len+2);
 }
+
+/* mode:
+	0：拍照
+	1：HDR切换(暂不支持)
+	2：录像
+	3：运动模式: 锁定模式
+	4：运动模式: 跟随模式
+	5：运动模式: FPV模式
+	6：设置HDMI视频输出（仅ZT6、A8 mini支持，重启生效）
+	7：设置CVBS视频输出（仅ZT6、A8 mini支持，重启生效）
+	8：HDMI/CVBS视频输出全部关闭
+ * */
+void set_a8mini_camera(uint8_t mode, mavlink_channel_t chan){
+	a8mini_data[0]=0x55;//STX
+	a8mini_data[1]=0x66;
+	a8mini_data[2]=0x00;//CTRL
+	a8mini_data[3]=0x01;//LEN
+	a8mini_data[4]=0x00;
+	a8mini_data[5]=0x00;//SEQ
+	a8mini_data[6]=0x00;
+	a8mini_data[7]=0x0C;//CMD
+	//DATA
+	*(int8_t *)&a8mini_data[8]=mode;//yaw_rate
+	//CRC16
+	uint16_t len=9;
+	*(uint16_t *)&a8mini_data[9]=CRC16_cal(a8mini_data, len, 0);
+	//send
+	comm_send_buf(chan, a8mini_data, len+2);
+}
