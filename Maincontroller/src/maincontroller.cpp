@@ -86,7 +86,7 @@ static float motion_tc=0.1f;//动捕传输延迟0.1s
 static float vins_dt=0.067f, lidar_dt=0.1f;//slam周期
 static float motion_dt=0.1f;//动捕传输周期0.1s
 static float rf_alt_raw=0.0f;
-
+static Vector3f lidar_offset=Vector3f(0.0f,0.0f,0.0f);		//cm,FRD坐标,雷达偏离飞机重心的位移
 static Vector3f accel, gyro, mag;								//原生加速度、角速度、磁罗盘测量值
 static Vector3f accel_correct, gyro_correct, mag_correct;		//修正后的加速度、角速度、磁罗盘测量值
 static Vector3f accel_filt, gyro_filt, mag_filt;				//滤波优化后的加速度、角速度、磁罗盘测量值
@@ -460,7 +460,9 @@ void get_tfmini_data(uint8_t buf)
 					if(cordist<=3){
 						use_tfmini=false;
 					}
-					rangefinder_state.alt_healthy=false;
+					if(!USE_ODOM_Z){
+						rangefinder_state.alt_healthy=false;
+					}
 				}
 				rangefinder_state.last_update_ms=HAL_GetTick();
 				tfmini_state=TFMINI_IDLE;
@@ -504,7 +506,9 @@ void get_vl53lxx_data(uint16_t distance_mm){
 //		usb_printf("dis2:%d\n",distance_mm);
 		rangefinder_state.alt_healthy=true;
 	}else{
-		rangefinder_state.alt_healthy=false;
+		if(!USE_ODOM_Z){
+			rangefinder_state.alt_healthy=false;
+		}
 	}
 	rangefinder_state.last_update_ms=HAL_GetTick();
 }
@@ -541,7 +545,9 @@ void update_tf2mini_data(float dis){
 		if(dis<=3.0f){
 			use_tfmini=false;
 		}
-		rangefinder_state.alt_healthy=false;
+		if(!USE_ODOM_Z){
+			rangefinder_state.alt_healthy=false;
+		}
 	}
 	rangefinder_state.last_update_ms=HAL_GetTick();
 }
@@ -698,8 +704,7 @@ static mavlink_local_position_ned_t local_position_ned;
 static mavlink_local_position_ned_cov_t local_position_ned_cov;
 static mavlink_set_position_target_local_ned_t set_position_target_local_ned, set_goal_point;
 static mavlink_global_vision_position_estimate_t pose;
-static Vector3f lidar_offset=Vector3f(0.0f,0.0f, 0.0f);//cm
-static uint8_t gcs_channel=255,offboard_channel=255;
+static uint8_t gcs_channel=255,offboard_channel=255,camera_channel=255;
 static uint16_t gnss_point_statis=0;
 static uint8_t gnss_reset_notify=0;
 static float motor_test_type=0.0f,motor_test_throttle=0.0f,motor_test_timeout=0.0f,motor_test_num=0.0f;
@@ -765,9 +770,9 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 						}
 					}
 				}else if(heartbeat.type==MAV_TYPE_CAMERA){
-					if(!offboard_connected&&!camera_connected){
+					if(!camera_connected){
 						camera_connected=true;
-						offboard_channel=chan;
+						camera_channel=chan;
 						if(!get_soft_armed()){
 							Buzzer_set_ring_type(BUZZER_MAV_CONNECT);
 						}
@@ -1755,7 +1760,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				odom_3d.x=local_position_ned.x * 100.0f-odom_offset.x;  //cm 外部定位必须是NED或者FRD坐标系,如果是FRD坐标还需要禁用磁罗盘。
 				odom_3d.y=local_position_ned.y * 100.0f-odom_offset.y;  //cm
 				if(USE_ODOM_Z){
-					odom_3d.z=-local_position_ned.z * 100.0f; //cm
+					odom_3d.z=-(local_position_ned.z * 100.0f-odom_offset.z); //cm
 					odom_dz=odom_3d.z-odom_z_last;
 					if(USE_MOTION){
 						odomz_tc=constrain_float(motion_tc, 0.0, 1.0);
@@ -1807,7 +1812,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				odom_3d.y=local_position_ned_cov.y * 100.0f-odom_offset.y;  //cm
 				if(USE_ODOM_Z){
 					ekf_baro->use_odom_z=true;
-					odom_3d.z=-local_position_ned_cov.z * 100.0f; //cm
+					odom_3d.z=-(local_position_ned_cov.z * 100.0f-odom_offset.z); //cm
 					odom_dz=odom_3d.z-odom_z_last;
 					if(USE_MOTION){
 						odomz_tc=constrain_float(motion_tc, 0.0, 1.0);
@@ -1871,12 +1876,12 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 					}
 					break;
 				default:
-					if(chan==gcs_channel){
+					if(chan==gcs_channel||chan==camera_channel){
 						use_gcs_target=true;
 						get_ego_mission=false;
 					}
 					if(use_gcs_target){
-						if(chan!=gcs_channel){
+						if(chan!=gcs_channel&&chan!=camera_channel){
 							break;
 						}
 					}
@@ -1969,31 +1974,31 @@ void send_mavlink_heartbeat_data(void){
 
 #if COMM_0==MAV_COMM
 		mavlink_send_buffer(MAVLINK_COMM_0, &msg_heartbeat);
-		if(gcs_channel==MAVLINK_COMM_0||offboard_channel==MAVLINK_COMM_0){
+		if(gcs_channel==MAVLINK_COMM_0||offboard_channel==MAVLINK_COMM_0||camera_channel==MAVLINK_COMM_0){
 			mavlink_send_buffer(MAVLINK_COMM_0, &msg_battery_status);
 		}
 #endif
 #if COMM_1==MAV_COMM
 		mavlink_send_buffer(MAVLINK_COMM_1, &msg_heartbeat);
-		if(gcs_channel==MAVLINK_COMM_1||offboard_channel==MAVLINK_COMM_1){
+		if(gcs_channel==MAVLINK_COMM_1||offboard_channel==MAVLINK_COMM_1||camera_channel==MAVLINK_COMM_1){
 			mavlink_send_buffer(MAVLINK_COMM_1, &msg_battery_status);
 		}
 #endif
 #if COMM_2==MAV_COMM
 		mavlink_send_buffer(MAVLINK_COMM_2, &msg_heartbeat);
-		if(gcs_channel==MAVLINK_COMM_2||offboard_channel==MAVLINK_COMM_2){
+		if(gcs_channel==MAVLINK_COMM_2||offboard_channel==MAVLINK_COMM_2||camera_channel==MAVLINK_COMM_2){
 			mavlink_send_buffer(MAVLINK_COMM_2, &msg_battery_status);
 		}
 #endif
 #if COMM_3==MAV_COMM
 		mavlink_send_buffer(MAVLINK_COMM_3, &msg_heartbeat);
-		if(gcs_channel==MAVLINK_COMM_3||offboard_channel==MAVLINK_COMM_3){
+		if(gcs_channel==MAVLINK_COMM_3||offboard_channel==MAVLINK_COMM_3||camera_channel==MAVLINK_COMM_3){
 			mavlink_send_buffer(MAVLINK_COMM_3, &msg_battery_status);
 		}
 #endif
 #if COMM_4==MAV_COMM
 		mavlink_send_buffer(MAVLINK_COMM_4, &msg_heartbeat);
-		if(gcs_channel==MAVLINK_COMM_4||offboard_channel==MAVLINK_COMM_4){
+		if(gcs_channel==MAVLINK_COMM_4||offboard_channel==MAVLINK_COMM_4||camera_channel==MAVLINK_COMM_4){
 			mavlink_send_buffer(MAVLINK_COMM_4, &msg_battery_status);
 		}
 #endif
@@ -2065,8 +2070,10 @@ void send_mavlink_data(mavlink_channel_t chan)
 			}
 		}else if(chan==offboard_channel){
 			offboard_connected=false;
-			camera_connected=false;
 			offboard_channel=255;
+		}else if(chan==camera_channel){
+			camera_connected=false;
+			camera_channel=255;
 		}
 		return;
 	}
@@ -2722,6 +2729,24 @@ void motors_init(void){
 		break;
 	}
 	motors->setup_motors(frame_class,frame_type,motor_type);
+	switch (motor_type) {
+		case Motors::PWM_TYPE_ESC:
+			motors->_pwm_max=PWM_ESC_MAX;
+			motors->_pwm_min=PWM_ESC_MIN;
+			motors->_spin_arm=PWM_ESC_SPIN_ARM;
+			motors->_spin_min=PWM_ESC_SPIN_MIN;
+			motors->_spin_max=PWM_ESC_SPIN_MAX;
+			break;
+		case Motors::PWM_TYPE_BRUSHED:
+			motors->_pwm_max=PWM_BRUSH_MAX;
+			motors->_pwm_min=PWM_BRUSH_MIN;
+			motors->_spin_arm=PWM_BRUSH_SPIN_ARM;
+			motors->_spin_min=PWM_BRUSH_SPIN_MIN;
+			motors->_spin_max=PWM_BRUSH_SPIN_MAX;
+			break;
+		default:
+			break;
+	}
 	motors->set_throttle_hover(constrain_float(motors->get_throttle_hover(), param->t_hover_update_min.value, param->t_hover_update_max.value));
 	// disable output to motors and servos
 	set_rcout_enable(false);
@@ -4640,10 +4665,12 @@ void uwb_send_data(void){
 #endif
 }
 
-void motors_test_update(void){
+bool motors_test_update(void){
 	if(motor_test_type>0.5f&&(HAL_GetTick()-motor_test_start_time)<(uint32_t)(motor_test_timeout*1000.0f)){
 		motors->set_throttle_passthrough_for_motor((uint8_t)motor_test_num, motor_test_throttle);
+		return true;
 	}
+	return false;
 }
 
 /*****************************************************************

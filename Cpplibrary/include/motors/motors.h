@@ -34,9 +34,9 @@
 #define AP_MOTORS_SPIN_WHEN_ARMED       70      // spin motors at this PWM value when armed
 #define AP_MOTORS_YAW_HEADROOM_DEFAULT  200.0f
 #define AP_MOTORS_THST_EXPO_DEFAULT     0.65f   // set to 0 for linear and 1 for second order approximation
-#define AP_MOTORS_THST_HOVER_DEFAULT    0.2f   // the estimated hover throttle, 0 ~ 1
+#define AP_MOTORS_THST_HOVER_DEFAULT    0.1f   // the estimated hover throttle, 0 ~ 1
 #define AP_MOTORS_THST_HOVER_TC         10.0f   // time constant used to update estimated hover throttle, 0 ~ 1
-#define AP_MOTORS_THST_HOVER_MIN        0.2f  // minimum possible hover throttle
+#define AP_MOTORS_THST_HOVER_MIN        0.1f  // minimum possible hover throttle
 #define AP_MOTORS_THST_HOVER_MAX        0.7f // maximum possible hover throttle
 #define AP_MOTORS_SPIN_MIN_DEFAULT      0.0f   // throttle out ratio which produces the minimum thrust.  (i.e. 0 ~ 1 ) of the full throttle range
 #define AP_MOTORS_SPIN_MAX_DEFAULT      1.0f   // throttle out ratio which produces the maximum thrust.  (i.e. 0 ~ 1 ) of the full throttle range
@@ -99,6 +99,11 @@ public:
 
     // Constructor
     Motors(float loop_rate);
+    uint16_t            _pwm_min;       // minimum PWM value that will ever be output to the motors (if 0, vehicle's throttle input channel's min pwm used)
+    uint16_t            _pwm_max;       // maximum PWM value that will ever be output to the motors (if 0, vehicle's throttle input channel's max pwm used)
+	float            	_spin_min;      // throttle out ratio which produces the minimum thrust.  (i.e. 0 ~ 1 ) of the full throttle range
+	float            	_spin_max;      // throttle out ratio which produces the maximum thrust.  (i.e. 0 ~ 1 ) of the full throttle range
+	float            	_spin_arm;      // throttle out ratio which produces the armed spin rate.  (i.e. 0 ~ 1 ) of the full throttle range
 
     // check initialisation succeeded
     bool                initialised_ok() const { return _flags.initialised_ok; }
@@ -210,16 +215,11 @@ protected:
 	// parameters
 	float               _yaw_headroom;          // yaw control is given at least this pwm range
 	float            	_thrust_curve_expo;     // curve used to linearize pwm to thrust conversion.  set to 0 for linear and 1 for second order approximation
-	float            	_spin_min;      // throttle out ratio which produces the minimum thrust.  (i.e. 0 ~ 1 ) of the full throttle range
-	float            	_spin_max;      // throttle out ratio which produces the maximum thrust.  (i.e. 0 ~ 1 ) of the full throttle range
-	float            	_spin_arm;      // throttle out ratio which produces the armed spin rate.  (i.e. 0 ~ 1 ) of the full throttle range
 	float            	_batt_voltage_max;      // maximum voltage used to scale lift
 	float            	_batt_voltage_min;      // minimum voltage used to scale lift
 	float            	_batt_current_max;      // current over which maximum throttle is limited
 	float            	_batt_current_time_constant;    // Time constant used to limit the maximum current
 	uint8_t             _batt_idx;              // battery index used for compensation
-	uint16_t            _pwm_min;               // minimum PWM value that will ever be output to the motors (if 0, vehicle's throttle input channel's min pwm used)
-	uint16_t            _pwm_max;               // maximum PWM value that will ever be output to the motors (if 0, vehicle's throttle input channel's max pwm used)
 	float            	_throttle_hover;        // estimated throttle required to hover throttle in the range 0 ~ 1
 	uint8_t             _throttle_hover_learn=0;  // enable/disabled hover thrust learning
 	uint8_t             _disarm_disable_pwm;    // disable PWM output while disarmed

@@ -190,7 +190,7 @@
 
 #define GYRO_INIT_MAX_DIFF_DPS 0.1f
 
-#define THR_HOVER_UPDATE_MIN 0.2f
+#define THR_HOVER_UPDATE_MIN 0.1f
 #define THR_HOVER_UPDATE_MAX 0.7f
 
 // spool definition

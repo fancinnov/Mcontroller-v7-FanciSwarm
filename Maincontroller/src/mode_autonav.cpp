@@ -24,6 +24,7 @@ static float relative_alt=0.0f;
 static Vector2f goal_2d;
 static bool goal_reset=false, goal_set=false;
 static bool use_surface_track=true;
+static int16_t esc_counter=0, esc_delay=0;
 bool mode_autonav_init(void){
 	if(motors->get_armed()){//电机未锁定,禁止切换至该模式
 		Buzzer_set_ring_type(BUZZER_ERROR);
@@ -135,6 +136,47 @@ void mode_autonav(void){
 		pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		pos_control->relax_alt_hold_controllers(0.0f);   // forces throttle output to go to zero
 		pos_control->update_z_controller(get_pos_z(), get_vel_z());
+		if(get_channel_5()<0.3){
+			if(motors_test_update()){
+				return;
+			}
+			/*
+			 * 以下为电调校准模式说明:
+			 * (1) 在电机锁定状态下,首先进行硬件解锁(注意不要进行手势解锁), 硬件解锁后Mcontroller右侧绿色指示灯长亮;
+			 * (2) 将油门推到最高, 偏航推到最左, 持续5s进入电调校准模式;
+			 * (3) 进入电调校准模式后提示音“嘟嘟嘟...”响起。此时将偏航回中, Mcontroller M1~M8插口会产生PWM输出;
+			 * (4) 在电调校准模式中, Mcontroller M1~M8口输出的PWM波脉宽直接由油门推杆控制, 即最大油门对应最大脉宽, 最小油门对应最小脉宽。
+			 * (5) 电调校准模式默认持续时间为50s, 即进入电调校准模式50s后自动退出电调校准模式;
+			 * (6) 在电调校准模式中, 将偏航推到最右可以立即退出电调校准模式;
+			 * */
+			float throttle=get_channel_throttle();
+			float tmp = get_channel_yaw();
+			if (tmp < -0.9) { //full left
+				// wait for 5s to enter esc correct mode
+				if( throttle > 0.9 && esc_counter < 2000) {
+					esc_counter++;
+				}
+				if (esc_counter == 2000) {
+					esc_delay=20000; //设置电调校准持续时间为50s, 50s后自动退出电调校准模式
+					Buzzer_set_ring_type(BUZZER_ESC);
+				}
+			}else if(tmp>0.5){	// Yaw is right to reset esc counter
+				esc_counter = 0;
+			}else{				// Yaw is centered to delay 20s to reset esc counter
+				// correct the esc
+				if(esc_delay>0){
+					if (esc_counter == 2000) {
+						Buzzer_set_ring_type(BUZZER_ESC);
+						motors->set_throttle_passthrough_for_motors(throttle);//只校准当前机型使能的电机
+					}
+					esc_delay--;
+					return;
+				}else{
+					esc_counter = 0;
+					esc_delay = 0;
+				}
+			}
+		}
 		break;
 
 	case AltHold_Takeoff:
