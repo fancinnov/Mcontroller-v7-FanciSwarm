@@ -111,6 +111,11 @@
 //动捕
 #define USE_MOTION 0 // if use motion capture, set 1; else set 0;
 
+//雷达安装位置
+#define LIDAR_OFFSET_X 0.0f	//单位cm,FRD坐标,雷达偏离飞机重心的位移
+#define LIDAR_OFFSET_Y 0.0f
+#define LIDAR_OFFSET_Z 0.0f	//安装在上方为负值,安装在下方为正值
+
 //配置锁定模式
 #define USE_CH8_LOCK 0
 
@@ -143,6 +148,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2025073001
+#define VERSION_FIRMWARE 2025082201
 
 #endif /* INCLUDE_CONFIG_H_ */
