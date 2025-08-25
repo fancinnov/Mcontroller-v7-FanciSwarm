@@ -3358,27 +3358,37 @@ void uwb_update(void){
 	uwb->uwb_update();
 }
 
-static uint32_t currunt_uwb_ms, last_uwb_ms = 0;
+static uint32_t currunt_uwb_ms=0, last_uwb_ms = 0;
+static bool get_uwb_pos=false;
+static float uwb_pos_gain=0.2f;
 void uwb_position_update(void){
 #if USE_UWB
 	FMU_LED6_Control(uwb->get_uwb_position);
 	if(!uwb->get_uwb_position){
 		return;
 	}
+	if(HAL_GetTick()-last_uwb_ms>5000){
+		get_uwb_pos=false;
+	}
 //	usb_printf_dir("$%d %d %d %d;", uwb->Anchordistance[0], uwb->Anchordistance[1], uwb->Anchordistance[2], uwb->Anchordistance[3]);
 	uwb->get_uwb_position=false;
 	uwb_pos.x=uwb->uwb_position.x*cosf(uwb_yaw_delta)+uwb->uwb_position.y*sinf(uwb_yaw_delta);
 	uwb_pos.y=-uwb->uwb_position.x*sinf(uwb_yaw_delta)+uwb->uwb_position.y*cosf(uwb_yaw_delta);
 	uwb_pos.z=uwb->uwb_position.z;
+	if(!get_uwb_pos){
+		_uwb_pos_filter.reset(uwb_pos);
+		ned_current_pos.x=uwb_pos.x;
+		ned_current_pos.y=uwb_pos.y;
+		get_uwb_pos=true;
+	}
 	currunt_uwb_ms=HAL_GetTick();
 	if(ekf_baro->vel_2d<100.0f&&robot_state==STATE_FLYING){
 		uwb_pos.x=constrain_float(uwb_pos.x, ned_current_pos.x-50.0f, ned_current_pos.x+50.0f);
 		uwb_pos.y=constrain_float(uwb_pos.y, ned_current_pos.y-50.0f, ned_current_pos.y+50.0f);
 	}
-	uwb_pos = _uwb_pos_filter.apply(uwb_pos, (float)(currunt_uwb_ms-last_uwb_ms)/1000.0f);
-	ned_current_pos.x=ned_current_pos.x*0.5+uwb_pos.x*0.5;
-	ned_current_pos.y=ned_current_pos.y*0.5+uwb_pos.y*0.5;
-	get_gnss_location=true;
+	uwb_pos = _uwb_pos_filter.apply(uwb_pos, (float)(currunt_uwb_ms-last_uwb_ms)*0.001f);
+	ned_current_pos.x=ned_current_pos.x*(1-uwb_pos_gain)+uwb_pos.x*uwb_pos_gain;
+	ned_current_pos.y=ned_current_pos.y*(1-uwb_pos_gain)+uwb_pos.y*uwb_pos_gain;
 	last_uwb_ms = currunt_uwb_ms;
 	use_uwb=true;
 #endif
