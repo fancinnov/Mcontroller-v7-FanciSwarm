@@ -256,6 +256,15 @@ uint8_t get_coordinate_mode(void);
 float log_pitch_rad(void);
 float log_roll_rad(void);
 float log_yaw_rad(void);
+float log_pitch_deg(void);
+float log_roll_deg(void);
+float log_yaw_deg(void);
+float log_cos_roll(void);
+float log_sin_roll(void);
+float log_cos_pitch(void);
+float log_sin_pitch(void);
+float log_cos_yaw(void);
+float log_sin_yaw(void);
 float ahrs_pitch_rad(void);					//俯仰角弧度值
 float ahrs_roll_rad(void);					//滚转角弧度值
 float ahrs_yaw_rad(void);					//偏航角弧度值

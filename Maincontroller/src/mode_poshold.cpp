@@ -123,7 +123,7 @@ void mode_poshold(void){
 		attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 		attitude->reset_rate_controller_I_terms();
 		attitude->set_yaw_target_to_current_heading();
-		target_yaw=ahrs_yaw_deg();
+		target_yaw=log_yaw_deg();
 		pos_control->set_xy_target(get_pos_x(), get_pos_y());
 		pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
 		pos_control->relax_alt_hold_controllers(0.0f);   // forces throttle output to go to zero
@@ -189,7 +189,7 @@ void mode_poshold(void){
 
 		// call attitude controller
 		if(!get_gnss_state()){//定位丢失，强制手动
-			target_yaw=ahrs_yaw_deg();
+			target_yaw=log_yaw_deg();
 			attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 			pos_control->set_xy_target(get_pos_x(), get_pos_y());
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
@@ -234,7 +234,7 @@ void mode_poshold(void){
 		}
 		attitude->reset_rate_controller_I_terms();
 		attitude->set_yaw_target_to_current_heading();
-		target_yaw=ahrs_yaw_deg();
+		target_yaw=log_yaw_deg();
 		attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 		pos_control->set_xy_target(get_pos_x(), get_pos_y());
 		pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());

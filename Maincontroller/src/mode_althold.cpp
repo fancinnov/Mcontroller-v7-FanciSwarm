@@ -13,7 +13,7 @@ bool mode_althold_init(void){
 		pos_control->set_alt_target_to_current_alt();
 		pos_control->set_desired_velocity_z(get_vel_z());
 	}
-	target_yaw=ahrs_yaw_deg();
+	target_yaw=log_yaw_deg();
 	set_manual_throttle(false);//设置为自动油门
 	Buzzer_set_ring_type(BUZZER_MODE_SWITCH);
 	usb_printf("switch mode althold!\n");
@@ -63,7 +63,7 @@ void mode_althold(void){
 		attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 		attitude->reset_rate_controller_I_terms();
 		attitude->set_yaw_target_to_current_heading();
-		target_yaw=ahrs_yaw_deg();
+		target_yaw=log_yaw_deg();
 		pos_control->relax_alt_hold_controllers(0.0f);   // forces throttle output to go to zero
 		pos_control->update_z_controller(get_pos_z(), get_vel_z());
 		break;
@@ -87,7 +87,7 @@ void mode_althold(void){
 		get_takeoff_climb_rates(target_climb_rate, takeoff_climb_rate);
 
 		// call attitude controller
-		target_yaw=ahrs_yaw_deg();
+		target_yaw=log_yaw_deg();
 		attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
 
 		// call position controller
@@ -110,7 +110,7 @@ void mode_althold(void){
 		attitude->reset_rate_controller_I_terms();
 		attitude->set_yaw_target_to_current_heading();
 		attitude->input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate);
-		target_yaw=ahrs_yaw_deg();
+		target_yaw=log_yaw_deg();
 		pos_control->relax_alt_hold_controllers(0.0f);   // forces throttle output to go to zero
 		pos_control->update_z_controller(get_pos_z(), get_vel_z());
 		break;

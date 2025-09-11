@@ -17,7 +17,7 @@ bool mode_stabilize_init(void){
 	// set target altitude to zero for reporting
 	pos_control->set_alt_target(0);
 	set_manual_throttle(true);//设置为手动油门
-	target_yaw=ahrs_yaw_deg();
+	target_yaw=log_yaw_deg();
 	Buzzer_set_ring_type(BUZZER_MODE_SWITCH);
 	usb_printf("switch mode stabilize!\n");
 	return true;
@@ -33,7 +33,7 @@ void mode_stabilize(void){
 	if (!motors->get_armed() || ap->throttle_zero || !motors->get_interlock()) {
 		zero_throttle_and_relax_ac();
 		attitude->rate_controller_run();
-		target_yaw=ahrs_yaw_deg();
+		target_yaw=log_yaw_deg();
 		motors->output();
 		robot_state=STATE_STOP;
 		motors_test_update();
