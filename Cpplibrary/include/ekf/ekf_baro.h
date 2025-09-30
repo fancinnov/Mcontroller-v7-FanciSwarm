@@ -23,8 +23,10 @@ public:
 	bool use_odom_z=false;
 	float gravity=GRAVITY_MSS;
 	void reset(void){
-		initialed_fusion=false;
 		initialed=false;
+	}
+	void fusion_reset(void){
+		initialed_fusion=false;
 	}
 
 private:

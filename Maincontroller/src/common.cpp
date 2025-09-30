@@ -153,11 +153,36 @@ crc_result= CRC16_cal(pbuf,len, 0);
 return 2;
 }
 
+void set_a8mini_zoom(float zoom, mavlink_channel_t chan){
+	a8mini_data[0]=0x55;//STX
+	a8mini_data[1]=0x66;
+	a8mini_data[2]=0x00;//CTRL
+	a8mini_data[3]=0x03;//LEN !!!!!!!!
+	a8mini_data[4]=0x00;
+	a8mini_data[5]=0x00;//SEQ
+	a8mini_data[6]=0x00;
+	a8mini_data[7]=0x05;//CMD
+	//DATA
+	if(zoom<-1.0f){
+		*(int8_t *)&a8mini_data[8]=-1;//缩小
+	}else if(zoom>1.0f){
+		*(int8_t *)&a8mini_data[8]=1;//放大
+	}else{
+		*(int8_t *)&a8mini_data[8]=0;//不变
+	}
+	*(uint16_t *)&a8mini_data[9]=(uint16_t)abs(zoom*10.0f);//倍数
+	//CRC16
+	uint16_t len=11;
+	*(uint16_t *)&a8mini_data[11]=CRC16_cal(a8mini_data, len, 0);
+	//send
+	comm_send_buf(chan, a8mini_data, len+2);
+}
+
 void set_a8mini_yp_rate(int8_t yaw_rate, int8_t pitch_rate, mavlink_channel_t chan){
 	a8mini_data[0]=0x55;//STX
 	a8mini_data[1]=0x66;
 	a8mini_data[2]=0x00;//CTRL
-	a8mini_data[3]=0x02;//LEN
+	a8mini_data[3]=0x02;//LEN !!!!!!!!
 	a8mini_data[4]=0x00;
 	a8mini_data[5]=0x00;//SEQ
 	a8mini_data[6]=0x00;
@@ -172,11 +197,29 @@ void set_a8mini_yp_rate(int8_t yaw_rate, int8_t pitch_rate, mavlink_channel_t ch
 	comm_send_buf(chan, a8mini_data, len+2);
 }
 
+void set_a8mini_center(mavlink_channel_t chan){
+	a8mini_data[0]=0x55;//STX
+	a8mini_data[1]=0x66;
+	a8mini_data[2]=0x00;//CTRL
+	a8mini_data[3]=0x01;//LEN !!!!!!!!
+	a8mini_data[4]=0x00;
+	a8mini_data[5]=0x00;//SEQ
+	a8mini_data[6]=0x00;
+	a8mini_data[7]=0x08;//CMD
+	//DATA
+	*(uint8_t *)&a8mini_data[8]=1;//触发回中
+	//CRC16
+	uint16_t len=9;
+	*(uint16_t *)&a8mini_data[9]=CRC16_cal(a8mini_data, len, 0);
+	//send
+	comm_send_buf(chan, a8mini_data, len+2);
+}
+
 void set_a8mini_yp_angle(int16_t yaw_angle, int16_t pitch_angle, mavlink_channel_t chan){
 	a8mini_data[0]=0x55;//STX
 	a8mini_data[1]=0x66;
 	a8mini_data[2]=0x01;//CTRL
-	a8mini_data[3]=0x04;//LEN
+	a8mini_data[3]=0x04;//LEN !!!!!!!!
 	a8mini_data[4]=0x00;
 	a8mini_data[5]=0x00;//SEQ
 	a8mini_data[6]=0x00;
@@ -208,7 +251,7 @@ void set_a8mini_camera(uint8_t mode, mavlink_channel_t chan){
 	a8mini_data[0]=0x55;//STX
 	a8mini_data[1]=0x66;
 	a8mini_data[2]=0x00;//CTRL
-	a8mini_data[3]=0x01;//LEN
+	a8mini_data[3]=0x01;//LEN !!!!!!!!
 	a8mini_data[4]=0x00;
 	a8mini_data[5]=0x00;//SEQ
 	a8mini_data[6]=0x00;

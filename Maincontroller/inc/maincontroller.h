@@ -40,6 +40,7 @@ extern UWB *uwb;
 const float _dt=0.0025;
 void send_mavlink_goal_point(float x, float y, float z);
 void send_mavlink_param_list(mavlink_channel_t chan);
+void send_mavlink_gnss_origin(mavlink_channel_t chan);
 void send_mavlink_mission_ack(mavlink_channel_t chan, MAV_MISSION_RESULT result);
 void send_mavlink_mission_item_reached(mavlink_channel_t chan, uint16_t seq);
 void send_mavlink_mission_count(mavlink_channel_t chan);

@@ -288,8 +288,6 @@ void mode_perch(void){
 				target_yaw_rate=get_mav_yaw_rate_target();
 				target_yaw=(get_mav_yaw_target()-yaw_delta)*RAD_TO_DEG;
 				target_yaw+=target_yaw_rate*_dt;
-				pos_control->set_speed_xy(param->mission_vel_max.value);
-				pos_control->set_accel_xy(param->mission_accel_max.value);
 				if(!get_first_pos){
 					ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
 					ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);

@@ -264,8 +264,6 @@ void mode_poshold(void){
 			attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
 			target_climb_rate=constrain_float(target_climb_rate, -param->pilot_speed_dn.value, -param->auto_land_speed.value);//设置降落速度cm/s
 		}else if(execute_return){
-			pos_control->set_speed_xy(param->mission_vel_max.value);
-			pos_control->set_accel_xy(param->mission_accel_max.value);
 			pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 			if(reach_return_alt){
 				ned_target_pos.x=ned_takeoff_pos.x;
@@ -324,8 +322,6 @@ void mode_poshold(void){
 				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
 			}else{//巡线模式
 				if(gnss_point_num>0){
-					pos_control->set_speed_xy(param->mission_vel_max.value);
-					pos_control->set_accel_xy(param->mission_accel_max.value);
 					if(get_gnss_reset_notify()!=notify){
 						notify=get_gnss_reset_notify();
 						target_point=0;

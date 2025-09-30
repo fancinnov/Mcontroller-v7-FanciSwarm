@@ -349,6 +349,8 @@ float get_channel_roll_angle(void);
 float get_channel_pitch_angle(void);
 float get_channel_yaw_angle(void);
 
+void set_a8mini_zoom(float zoom, mavlink_channel_t chan);
+void set_a8mini_center(mavlink_channel_t chan);
 void set_a8mini_yp_rate(int8_t yaw_rate, int8_t pitch_rate, mavlink_channel_t chan);//rate -100~100
 void set_a8mini_yp_angle(int16_t yaw_angle, int16_t pitch_angle, mavlink_channel_t chan);//angle*10
 void set_a8mini_camera(uint8_t mode, mavlink_channel_t chan);//camera
