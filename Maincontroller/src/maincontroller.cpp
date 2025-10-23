@@ -493,7 +493,7 @@ void get_vl53lxx_data(uint16_t distance_mm){
 		rangefinder_state.alt_healthy=false;
 		return;
 	}
-	if(distance_mm>5&&distance_mm<100){
+	if(distance_mm>0&&distance_mm<100){
 		force_vl53lxx=true;
 	}else{
 		force_vl53lxx=false;
@@ -527,7 +527,7 @@ void get_vl53lxx_data(uint16_t distance_mm){
 	rangefinder_state.last_update_ms=HAL_GetTick();
 }
 
-static Vector3f tf2mini_offset=Vector3f(0.0f, 0.0f, 0.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
+static Vector3f tf2mini_offset=Vector3f(0.0f, 0.0f, 2.0f);//激光测距仪相对于机体中心的坐标,单位:cm (机头方向为x轴正方向, 机体右侧为y轴正方向)
 void update_tf2mini_data(float dis){
 	if(!use_rangefinder){
 		rangefinder_state.alt_healthy=false;
@@ -536,7 +536,7 @@ void update_tf2mini_data(float dis){
 	if(force_vl53lxx){
 		return;
 	}
-	if(dis>3.0f&&dis<=750.0f){
+	if(dis>8.0f&&dis<=750.0f){
 		use_tfmini=true;
 		rf_alt_raw=dis;
 		if(USE_ODOM_Z){
@@ -556,7 +556,7 @@ void update_tf2mini_data(float dis){
 //		usb_printf("dis3:%f\n",rangefinder_state.alt_cm);
 		rangefinder_state.alt_healthy=true;
 	}else{
-		if(dis<=3.0f){
+		if(dis<=8.0f){
 			use_tfmini=false;
 		}
 		if(!USE_ODOM_Z){
