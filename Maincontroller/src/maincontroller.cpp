@@ -3430,7 +3430,7 @@ void uwb_update(void){
 
 static uint32_t currunt_uwb_ms=0, last_uwb_ms = 0;
 static bool get_uwb_pos=false;
-static float uwb_pos_gain=0.1f;
+static float uwb_pos_gain=0.2f;
 void uwb_position_update(void){
 #if USE_UWB
 	FMU_LED6_Control(uwb->get_uwb_position);
