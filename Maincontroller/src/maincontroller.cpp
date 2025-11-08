@@ -60,6 +60,7 @@ static bool odom_safe=false;
 static bool get_mav_target=false;
 static bool use_gcs_target=false;
 static bool get_ego_mission=false;
+static bool use_follow=false;
 
 static float accel_filt_hz=10;//HZ
 static float gyro_filt_hz=20;//HZ
@@ -886,14 +887,17 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 					case MAV_CMD_DO_FOLLOW:
 						if(is_equal(cmd.param1,1.0f)){//前视追踪
 							if(offboard_connected){
+								use_follow=true;
 								send_mavlink_commond_follow((mavlink_channel_t)offboard_channel, 1.0);
 							}
 						}else if(is_equal(cmd.param1,2.0f)){//下视追踪
 							if(offboard_connected){
+								use_follow=true;
 								send_mavlink_commond_follow((mavlink_channel_t)offboard_channel, 2.0);
 							}
 						}else if(is_equal(cmd.param1,3.0f)){//停止追踪
 							if(offboard_connected){
+								use_follow=false;
 								send_mavlink_commond_follow((mavlink_channel_t)offboard_channel, 3.0);
 							}
 						}
@@ -1922,7 +1926,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 						use_gcs_target=true;
 						get_ego_mission=false;
 					}
-					if(use_gcs_target){
+					if(use_gcs_target&&!use_follow){
 						if(chan!=gcs_channel&&chan!=camera_channel){
 							break;
 						}
