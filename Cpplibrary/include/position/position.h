@@ -173,7 +173,7 @@ public:
     /// get_lean_angle_max_d - returns the maximum lean angle the autopilot may request
     float get_lean_angle_max_d() const;
     void set_lean_angle_max_d(float degree){_lean_angle_max=degree;}
-
+    void set_accel_wind(float wind_x, float wind_y){_accel_wind.x=wind_x;_accel_wind.y=wind_y;}
     /// init_xy_controller - initialise the xy controller
     ///     sets target roll angle, pitch angle and I terms based on vehicle current lean angles
     ///     should be called once whenever significant changes to the position target are made
@@ -297,6 +297,7 @@ public:
 
     // lean_angles_to_accel - convert roll, pitch lean angles to lat/lon frame accelerations in cm/s/s
     void accel_to_lean_angles(float accel_x_cmss, float accel_y_cmss, float& roll_target, float& pitch_target) const;
+    void accel_to_lean_angles(float accel_z_mss, float accel_x_cmss, float accel_y_cmss, float& roll_target, float& pitch_target) const;
 
     // lean_angles_to_accel - convert roll, pitch lean angles to lat/lon frame accelerations in cm/s/s
     void lean_angles_to_accel(float& accel_x_cmss, float& accel_y_cmss) const;
@@ -366,7 +367,7 @@ protected:
     float calc_leash_length(float speed_cms, float accel_cms, float kP) const;
 
     /// limit vector to a given length, returns true if vector was limited
-    static bool limit_vector_length(float& vector_x, float& vector_y, float max_length);
+    bool limit_vector_length(float& vector_x, float& vector_y, float max_length);
 
     /// Proportional controller with piecewise sqrt sections to constrain second derivative
     Vector3f sqrt_controller(const Vector3f& error, float p, float second_ord_lim);
@@ -420,6 +421,7 @@ protected:
     Vector3f    _accel_target;          // acceleration target in cm/s/s
     Vector3f    _accel_error;           // acceleration error in cm/s/s
     Vector2f    _vehicle_horiz_vel;     // velocity to use if _flags.vehicle_horiz_vel_override is set
+    Vector2f    _accel_wind;
     float       _distance_to_target;    // distance to position target - for reporting only
     LowPassFilterFloat _vel_error_filter;   // low-pass-filter on z-axis velocity error
     LowPassFilterVector2f _accel_target_filter; // acceleration target filter

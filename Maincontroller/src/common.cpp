@@ -9,6 +9,7 @@
 static bool _soft_armed=false;//心跳包中表示是否解锁的标志位
 static bool _thr_force_decrease=false;//强制油门下降
 static bool _vel_d_constrain=false;
+static PERCHING_STATE _perching=PERCHING_NONE;
 ROBOT_STATE robot_state=STATE_NONE;
 ROBOT_STATE robot_state_desired=STATE_NONE;
 ROBOT_MAIN_MODE robot_main_mode=MODE_AIR;
@@ -40,7 +41,27 @@ void set_constrain_vel_d(bool constrain){
 	_vel_d_constrain=constrain;
 }
 
+PERCHING_STATE get_perching(void){
+	return _perching;
+}
+
+void set_perching(PERCHING_STATE perching){
+	_perching=perching;
+}
+
 bool mode_init(void){
+#if PERCHING_MODE
+	if(robot_sub_mode!=MODE_PERCH){
+		if(mode_perch_init()){
+			robot_sub_mode=MODE_PERCH;
+			return true;
+		}else{
+			return false;
+		}
+	}else{
+		return true;
+	}
+#else
 	if(robot_sub_mode!=MODE_AUTONAV){
 		if(mode_autonav_init()){
 			robot_sub_mode=MODE_AUTONAV;
@@ -51,12 +72,17 @@ bool mode_init(void){
 	}else{
 		return true;
 	}
+#endif
 }
 
 //should be run at 400hz
 void mode_update(void){
 	if(mode_init()){
+#if PERCHING_MODE
+		mode_perch();
+#else
 		mode_autonav();
+#endif
 	}
 }
 

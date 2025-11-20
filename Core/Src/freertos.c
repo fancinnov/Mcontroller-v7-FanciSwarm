@@ -333,6 +333,9 @@ void InitTask(void *argument)
   if(!uwb_init()){
   	  osThreadTerminate(uwbTaskHandle);
   }
+#if USE_ENCODER
+  encoder_init();
+#endif
   Buzzer_set_ring_type(BUZZER_INITIALED);
   usb_printf("System initialized succeed!\r\n");
   initialed_task=true;//当初始化未完成时，只运行buzzer task
@@ -363,6 +366,7 @@ void Loop400hzTask(void *argument)
 	  ahrs_update();
 	  ekf_baro_alt();
 	  /***Do not change code above and change or add new code below***/
+	  encoder_position_update();
 	  ekf_odom_xy();
 	  ekf_gnss_xy();
 	  mode_update();
@@ -738,7 +742,9 @@ void TIM_50HZ_Callback(void){
 
 //************GPIO Callback**************//
 void gpio1_interrupt_callback(void){
-
+#if USE_ENCODER
+	check_wheel_count_gpio1();
+#endif
 }
 
 void gpio2_interrupt_callback(void){
@@ -746,7 +752,9 @@ void gpio2_interrupt_callback(void){
 }
 
 void gpio3_interrupt_callback(void){
-
+#if USE_ENCODER
+	check_wheel_count_gpio3();
+#endif
 }
 
 void gpio4_interrupt_callback(void){
@@ -754,7 +762,9 @@ void gpio4_interrupt_callback(void){
 }
 
 void gpio5_interrupt_callback(void){
-
+#if USE_ENCODER
+	check_wheel_count_gpio5();
+#endif
 }
 
 void gpio6_interrupt_callback(void){
@@ -762,7 +772,9 @@ void gpio6_interrupt_callback(void){
 }
 
 void gpio7_interrupt_callback(void){
-
+#if USE_ENCODER
+	check_wheel_count_gpio7();
+#endif
 }
 
 void gpio8_interrupt_callback(void){

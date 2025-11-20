@@ -284,7 +284,7 @@ void mode_autonav(void){
 		motors->set_desired_spool_state(Motors::DESIRED_THROTTLE_UNLIMITED);
 
 		// call attitude controller
-		if((use_gcs&&!get_gcs_connected())||(use_rc&&!rc_channels_healthy())){
+		if((use_gcs||use_rc)&&!rc_channels_healthy()&&!get_gcs_connected()){
 			robot_state_desired=STATE_LANDED;
 			target_roll=0.0f;
 			target_pitch=0.0f;
@@ -311,7 +311,6 @@ void mode_autonav(void){
 			pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 			target_roll=pos_control->get_roll();
 			target_pitch=pos_control->get_pitch();
-			get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<30.0f)){//降落检测
 				if(target_climb_rate<-1.0f){
@@ -338,7 +337,7 @@ void mode_autonav(void){
 				get_accel_vel_limit();
 				if(get_mav_target_state()){
 					target_yaw_rate=get_mav_yaw_rate_target();
-					if(target_yaw_rate==0.0f&&get_mav_yaw_target()!=0.0f){
+					if(target_yaw_rate==0.0f){
 						target_yaw=(get_mav_yaw_target()*DEG_TO_RAD-yaw_delta)*RAD_TO_DEG;
 					}else{
 						target_yaw+=target_yaw_rate*_dt;
@@ -423,7 +422,6 @@ void mode_autonav(void){
 				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
 				target_roll=pos_control->get_roll();
 				target_pitch=pos_control->get_pitch();
-				get_wind_correct_lean_angles(target_roll, target_pitch,10.0f);
 				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			}
 		}

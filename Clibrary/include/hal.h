@@ -200,6 +200,7 @@ bool get_gnss_stabilize(void);
 bool uwb_init(void);
 void uwb_update(void);
 void uwb_position_update(void);
+void encoder_position_update(void);
 void ekf_baro_alt(void);
 void ekf_rf_alt(void);
 void ekf_odom_xy(void);
@@ -687,6 +688,16 @@ void gpio5_interrupt_callback(void);
 void gpio6_interrupt_callback(void);
 void gpio7_interrupt_callback(void);
 void gpio8_interrupt_callback(void);
+
+void encoder_init(void);
+void check_wheel_count_gpio1(void);
+void check_wheel_count_gpio3(void);
+void check_wheel_count_gpio5(void);
+void check_wheel_count_gpio7(void);
+int32_t get_left_count(void);
+int32_t get_right_count(void);
+float get_left_theta(void);//rad
+float get_right_theta(void);//rad
 
 //RC-INPUT
 void PPM_RX_InterruptHandler(void);

@@ -67,6 +67,7 @@ private:
 	bool rf_correct=false;
 	float baro_alt_init=0.0f;
 	float baro_alt_real=0.0f;
-	float pos_z_last=0.0f;
+	float pos_z_last=0.0f,wall_pos_z_last=0.0f;
+	uint32_t last_update_time=0;
 };
 #endif /* INCLUDE_EKF_EKF_BARO_H_ */

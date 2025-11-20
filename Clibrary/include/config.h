@@ -128,6 +128,11 @@
 //是否启用解锁检查
 #define PREARM_CHECK 1 //启用：1 不启用：0
 
+//是否启用编码器
+#define USE_ENCODER 0 //启用：1 不启用：0
+
+#define PERCHING_MODE 0
+
 //配置flash
 #define USE_FRAM 2 //保持默认值,请勿更改
 
@@ -148,6 +153,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2025110801
+#define VERSION_FIRMWARE 2025111901
 
 #endif /* INCLUDE_CONFIG_H_ */

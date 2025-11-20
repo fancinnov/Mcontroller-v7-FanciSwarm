@@ -44,6 +44,7 @@ public:
 	int Tagdistance[127]={0};
 	Vector3f uwb_position;
 	float* distance_tag;
+	uwb_modes uwb_mode=none;
 	uint8_t TAG_ID=1;
 	bool uwb_init(void);
 	void uwb_update(void);
@@ -166,7 +167,6 @@ private:
 	uint32_t tag_time=0,wait_time=0,range_time=0;
 	uint8_t last_tag=0;
 	uwb_states uwb_state=idle;
-	uwb_modes uwb_mode=none;
 
 	bool init_uwb_tag=false, get_dis=false;
 	uint32_t final_tx_time;

@@ -252,7 +252,10 @@ void compass_calibrate(void);
 bool get_force_autonav(void);
 void set_enable_odom(bool enable);
 uint8_t get_coordinate_mode(void);
-
+float get_wall_pos_z(void);
+float get_wall_vel_z(void);
+float get_dis_wall(void);
+float get_rf_alt_raw(void);
 float log_pitch_rad(void);
 float log_roll_rad(void);
 float log_yaw_rad(void);
@@ -486,6 +489,14 @@ typedef enum{
 	comm_tx,
 	comm_rx
 }uwb_modes;
+
+typedef enum {
+	PERCHING_NONE=0,
+	PERCHING_GROUND,
+	PERCHING_WALL
+}PERCHING_STATE;
+PERCHING_STATE get_perching(void);
+void set_perching(PERCHING_STATE perching);
 
 typedef enum {
 	STATE_NONE=0,
