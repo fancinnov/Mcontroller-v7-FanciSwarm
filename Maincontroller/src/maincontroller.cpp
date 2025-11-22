@@ -2175,11 +2175,12 @@ void send_mavlink_data(mavlink_channel_t chan)
 	//姿态+位置
 	global_attitude_position.pitch=log_pitch_rad();
 	global_attitude_position.roll=log_roll_rad();
-	global_attitude_position.yaw=log_yaw_rad();
 	if(use_uwb){
+		global_attitude_position.yaw=log_yaw_rad()+uwb_yaw_delta;
 		global_attitude_position.x=get_pos_x()*cosf(uwb_yaw_delta)-get_pos_y()*sinf(uwb_yaw_delta);
 		global_attitude_position.y=get_pos_x()*sinf(uwb_yaw_delta)+get_pos_y()*cosf(uwb_yaw_delta);
 	}else{
+		global_attitude_position.yaw=log_yaw_rad();
 		global_attitude_position.x=get_pos_x();
 		global_attitude_position.y=get_pos_y();
 	}
