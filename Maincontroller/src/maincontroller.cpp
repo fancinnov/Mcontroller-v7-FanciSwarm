@@ -553,11 +553,11 @@ void update_tf2mini_data(float dis){
 		rangefinder_state.alt_healthy=false;
 		return;
 	}
-	if(force_vl53lxx){
-		return;
-	}
-	if(dis>8.0f&&dis<=750.0f){
+	if(dis>3.0f&&dis<=750.0f){
 		use_tfmini=true;
+		if(force_vl53lxx){
+			return;
+		}
 		rf_alt_raw=dis;
 		rf_alt_raw_healthy=true;
 		if(USE_ODOM_Z){
@@ -578,11 +578,14 @@ void update_tf2mini_data(float dis){
 		rangefinder_state.alt_healthy=true;
 		rangefinder_state.last_update_ms=HAL_GetTick();
 	}else{
-		rf_alt_raw=0.0f;
-		rf_alt_raw_healthy=false;
-		if(dis<=8.0f){
+		if(dis<=3.0f){
 			use_tfmini=false;
 		}
+		if(force_vl53lxx){
+			return;
+		}
+		rf_alt_raw=0.0f;
+		rf_alt_raw_healthy=false;
 		if(!USE_ODOM_Z){
 			rangefinder_state.alt_healthy=false;
 			rangefinder_state.last_update_ms=HAL_GetTick();
