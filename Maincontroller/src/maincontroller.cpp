@@ -4355,7 +4355,7 @@ static void update_land_detector(void)
 	if(PERCHING_MODE){//禁用电机锁定
 		return;
 	}
-	if(USE_ODOM_Z&&rf_alt_raw_healthy&&get_vel_z()<0&&pos_control->get_desired_velocity().z<0){
+	if(rf_alt_raw_healthy&&get_vel_z()<0&&pos_control->get_desired_velocity().z<0){
 		if(rf_alt_raw>param->landing_lock_alt.value&&rf_alt_raw<30.0f){
 			if(rf_alt_raw!=rf_alt_raw_last){
 				if(lock_detector_count==0){

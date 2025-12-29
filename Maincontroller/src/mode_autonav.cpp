@@ -18,7 +18,6 @@ static float jump_alt=0.0f;
 static uint16_t land_detect=0;
 static float takeoff_alt=0.0f;
 static bool hit_target_takeoff_alt=true;
-static uint8_t landing=0;
 static float landing_alt=0.0f;
 static float relative_alt=0.0f;
 static Vector2f goal_2d;
@@ -203,7 +202,6 @@ void mode_autonav(void){
 			set_throttle_takeoff();
 			landing_alt=get_pos_z();
 			reset_mav_target_state();
-			landing=0;
 			if(jump){//起飞时直接跳起
 				pos_control->get_accel_z_pid().set_integrator(0.0f);
 				pos_control->set_alt_target(get_pos_z()+jump_alt);//设置目标高度比当前高度高jump_alt
@@ -261,7 +259,6 @@ void mode_autonav(void){
 	case AltHold_Landed:
 		robot_state=STATE_LANDED;
 		execute_land=false;
-		landing=0;
 		takeoff_time=0;
 		// set motors to spin-when-armed if throttle below deadzone, otherwise full range (but motors will only spin at min throttle)
 		if (target_climb_rate < 0.0f) {
@@ -430,21 +427,8 @@ void mode_autonav(void){
 			execute_land=true;
 		}
 
-		if(robot_state_desired==STATE_LANDED||execute_land||landing>1){//自动降落
+		if(robot_state_desired==STATE_LANDED||execute_land){//自动降落
 			target_climb_rate=-constrain_float(param->auto_land_speed.value, 0.0f, param->pilot_speed_dn.value);//设置降落速度cm/s
-		}
-
-		if(target_climb_rate<-1.0f&&!USE_ODOM_Z){
-			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<30.0f&&rangefinder_state.alt_cm>20.0f)){
-				landing++;
-				if(landing>2){
-					landing=2;
-				}
-			}
-			if(landing>1&&rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<param->landing_lock_alt.value)){
-				disarm_motors();
-				landing=0;
-			}
 		}
 
 		// adjust climb rate using rangefinder
