@@ -187,7 +187,6 @@ void mode_autonav(void){
 		}
 		motors->set_throttle_hover(0.35);//设置悬停油门, 需要根据不同的机型自行调整
 		takeoff_alt=constrain_float(param->pilot_takeoff_alt.value,30.0f,200.0f);//最小30cm,最大200cm
-		set_target_rangefinder_alt(takeoff_alt);
 		// initiate take-off
 		if (!takeoff_running()) {
 			if(get_batt_volt()<param->lowbatt_land_volt.value){
@@ -201,6 +200,7 @@ void mode_autonav(void){
 			// clear i terms
 			set_throttle_takeoff();
 			landing_alt=get_pos_z();
+			set_target_rangefinder_alt(landing_alt+takeoff_alt);
 			reset_mav_target_state();
 			if(jump){//起飞时直接跳起
 				pos_control->get_accel_z_pid().set_integrator(0.0f);
@@ -384,9 +384,13 @@ void mode_autonav(void){
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
 							break;
 					}
-					if(relative_alt>=30.0f&&robot_state_desired!=STATE_LANDED&&!execute_land){
+
+					if(robot_state_desired!=STATE_LANDED&&!execute_land){
 						if(use_surface_track){
-							set_target_rangefinder_alt(relative_alt);
+							if(!USE_ODOM_Z){
+								relative_alt=MAX(relative_alt,30.0f);
+							}
+							set_target_rangefinder_alt(relative_alt+landing_alt);
 						}
 						if(!rangefinder_state.alt_healthy||!use_surface_track){
 							pos_control->set_alt_target(relative_alt+landing_alt);

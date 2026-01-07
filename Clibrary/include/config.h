@@ -125,6 +125,12 @@
 //是否使用A8MINI云台相机
 #define USE_A8MINI 0 // 启用：1 不启用：0
 
+//是否使用C12热成像云台相机
+#define USE_C12 0 // 启用：1 不启用：0
+
+//是否使用CH8控制舵机
+#define USE_CH8_SERVO 0
+
 //是否启用解锁检查
 #define PREARM_CHECK 1 //启用：1 不启用：0
 
@@ -153,6 +159,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2025122901
+#define VERSION_FIRMWARE 2026010501
 
 #endif /* INCLUDE_CONFIG_H_ */

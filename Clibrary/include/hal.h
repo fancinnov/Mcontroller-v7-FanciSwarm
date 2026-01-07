@@ -150,6 +150,11 @@ typedef enum {
 	BUZZER_ERROR,
 	BUZZER_ERROR_1,
 	BUZZER_ERROR_2,
+	BUZZER_NOFLY,
+	BUZZER_NOFLY_1,
+	BUZZER_NOFLY_2,
+	BUZZER_NOFLY_3,
+	BUZZER_NOFLY_4,
 	BUZZER_ARMED,
 	BUZZER_DISARM,
 	BUZZER_ESC,
@@ -385,6 +390,7 @@ void FRAM_Init(void);//FRAM 初始化
 uint8_t FRAM_Get_Status(void);//获取fram状态
 void FRAM_Write_Data(uint32_t addr, uint8_t *data, uint8_t length);
 void FRAM_Read_Data(uint32_t addr, uint8_t *data, uint8_t length);
+void FRAM_Read_FS_UID(uint8_t *data);
 
 /***flash驱动函数为底层驱动，它的上层函数在Cpplibrary中的flash.h***/
 /* @brief: write data into flash
@@ -593,7 +599,7 @@ float get_pressure(void);       // 获取外部模拟输入的电压测量值，
   * @param  set: ture/false
   * 		true为启用，false禁用
   */
-void set_rcout_enable(bool set);
+bool set_rcout_enable(bool set);
 
 //重新设置电机motor1~motor8输出口PWM频率
 void reset_motor_freq(uint16_t freq);

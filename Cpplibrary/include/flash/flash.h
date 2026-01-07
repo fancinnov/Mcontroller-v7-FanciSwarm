@@ -30,6 +30,7 @@ public:
 	void get_param_pid_2d(uint16_t num, float &p, float &i, float &d, float &i_max, float &filt_hz, float &filt_d_hz);
 	void get_param_uint16_channel8(uint16_t num, uint16_t *channel);
 	void get_param_uint32(uint16_t num, uint32_t &value);
+	void get_fs_uid(uint64_t &value);
 
 private:
 	uint16_t addr_num_max=0;

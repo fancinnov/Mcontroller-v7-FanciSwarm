@@ -290,3 +290,43 @@ void set_a8mini_camera(uint8_t mode, mavlink_channel_t chan){
 	//send
 	comm_send_buf(chan, a8mini_data, len+2);
 }
+
+static uint8_t CalculateCrc(char *cmd, uint8_t len){
+	uint8_t crc;
+	uint8_t i;
+	crc=0;
+	for(i=0; i<len; i++){
+		crc += cmd[i];
+	}
+	return(crc);
+}
+
+static char hexStr[32],crcstr[4];
+static uint8_t len_send=0;
+void set_c12_zoom(bool zoom, mavlink_channel_t chan){
+	if(zoom){
+		len_send=snprintf(hexStr, sizeof(hexStr), "#TPUD2wDZM0A65");
+	}else{
+		len_send=snprintf(hexStr, sizeof(hexStr), "#TPUD2wDZM0B66");
+	}
+	comm_send_buf(chan, (uint8_t*)hexStr, len_send);
+}
+
+void set_c12_yp_angle(int16_t yaw_angle, int16_t pitch_angle, mavlink_channel_t chan){
+	len_send=snprintf(hexStr, sizeof(hexStr), "#TPUGCwGAM%04X%02X%04X%02X", yaw_angle, 99, pitch_angle, 99);
+	uint8_t crc=CalculateCrc(hexStr, len_send);
+	snprintf(crcstr, sizeof(crcstr), "%02X", crc);
+	hexStr[len_send]=crcstr[0];
+	hexStr[len_send+1]=crcstr[1];
+	comm_send_buf(chan, (uint8_t*)hexStr, len_send+2);
+}
+
+void set_c12_capture(mavlink_channel_t chan){
+	len_send=snprintf(hexStr, sizeof(hexStr), "#TPUD2wCAP013E");
+	comm_send_buf(chan, (uint8_t*)hexStr, len_send);
+}
+
+void set_c12_video(mavlink_channel_t chan){
+	len_send=snprintf(hexStr, sizeof(hexStr), "#TPUD2wREC0A54");
+	comm_send_buf(chan, (uint8_t*)hexStr, len_send);
+}
