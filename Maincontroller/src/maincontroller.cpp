@@ -4004,7 +4004,7 @@ float get_surface_tracking_climb_rate(float target_rate, float current_alt_targe
     uint32_t now = HAL_GetTick();
 
     // reset target altitude if this controller has just been engaged
-    if (now - last_call_ms > RANGEFINDER_TIMEOUT_MS&&robot_sub_mode!=MODE_AUTONAV) {
+    if (now - last_call_ms > RANGEFINDER_TIMEOUT_MS&&(robot_spec_mode!=MODE_AUTO||target_rate!=0.0f)) {
     	target_rangefinder_alt = rangefinder_state.alt_cm + current_alt_target - current_alt;
     	hit_target_rangefinder_alt=false;
 	}
