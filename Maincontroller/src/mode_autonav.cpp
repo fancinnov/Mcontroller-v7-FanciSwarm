@@ -9,13 +9,11 @@
 static float target_yaw=0.0f;
 static bool jump=true;
 static bool use_gcs=false, use_rc=false;
-static bool execute_land=false;
 static Vector3f ned_target_pos;
 static Vector2f ned_target_dis_2d, ned_dis_2d, vel_desired;
 static uint32_t takeoff_time=0, lock_time=0, safe_time=0;
 static float yaw_delta=0.0f;
 static float jump_alt=0.0f;
-static uint16_t land_detect=0;
 static float takeoff_alt=0.0f;
 static bool hit_target_takeoff_alt=true;
 static float landing_alt=0.0f;
@@ -115,7 +113,6 @@ void mode_autonav(void){
 
 	case AltHold_MotorStopped:
 		robot_state=STATE_STOP;
-		execute_land=false;
 		lock_time=HAL_GetTick();
 		takeoff_time=0;
 		if(robot_state_desired==STATE_FLYING||robot_state_desired==STATE_TAKEOFF){
@@ -258,7 +255,6 @@ void mode_autonav(void){
 
 	case AltHold_Landed:
 		robot_state=STATE_LANDED;
-		execute_land=false;
 		takeoff_time=0;
 		// set motors to spin-when-armed if throttle below deadzone, otherwise full range (but motors will only spin at min throttle)
 		if (target_climb_rate < 0.0f) {
@@ -309,19 +305,6 @@ void mode_autonav(void){
 			target_roll=pos_control->get_roll();
 			target_pitch=pos_control->get_pitch();
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
-			if(rangefinder_state.alt_healthy&&(rangefinder_state.alt_cm<30.0f)){//降落检测
-				if(target_climb_rate<-1.0f){
-					land_detect++;
-					if(land_detect>200){
-						execute_land=true;
-						land_detect=200;
-					}
-				}else{
-					land_detect=0;
-				}
-			}else{
-				land_detect=0;
-			}
 		}else{//自主模式
 			robot_spec_mode=MODE_AUTO;
 			if((HAL_GetTick()-takeoff_time)<2000){
@@ -385,7 +368,7 @@ void mode_autonav(void){
 							break;
 					}
 
-					if(robot_state_desired!=STATE_LANDED&&!execute_land){
+					if(robot_state_desired!=STATE_LANDED&&relative_alt!=0.0f){
 						if(use_surface_track){
 							if(!USE_ODOM_Z){
 								relative_alt=MAX(relative_alt,30.0f);
@@ -428,10 +411,10 @@ void mode_autonav(void){
 		}
 
 		if(get_batt_volt()<param->lowbatt_land_volt.value&&(HAL_GetTick()-takeoff_time)>2000){//电量过低，强制降落
-			execute_land=true;
+			robot_state_desired=STATE_LANDED;
 		}
 
-		if(robot_state_desired==STATE_LANDED||execute_land){//自动降落
+		if(robot_state_desired==STATE_LANDED){//自动降落
 			target_climb_rate=-constrain_float(param->auto_land_speed.value, 0.0f, param->pilot_speed_dn.value);//设置降落速度cm/s
 		}
 

@@ -103,13 +103,16 @@
 #define USE_ODOMETRY 0 // if use odometry, set 1; if don't use odometry, set 0;
 
 //VINS
-#define USE_VINS 0 // if use vins, set 1; if use lidar-slam, set 0;
+#define USE_VINS 0 // if use vins, set 1; if use 3d lidar-slam, set 0;
 
 //SLAM定高
 #define USE_ODOM_Z 0 // if use slam z, set 1; else set 0;
 
 //动捕
 #define USE_MOTION 0 // if use motion capture, set 1; else set 0;
+
+//2D-LIDAR
+#define USE_2D_LIDAR 0 // if use 2d lidar-slam, set 1; if use 3d lidar-slam, set 0;
 
 //雷达安装位置
 #define LIDAR_OFFSET_X 0.0f	//单位cm,FRD坐标,雷达偏离飞机重心的位移
@@ -159,6 +162,6 @@
 #endif
 
 #define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2026010501
+#define VERSION_FIRMWARE 2026020201
 
 #endif /* INCLUDE_CONFIG_H_ */

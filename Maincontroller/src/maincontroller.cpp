@@ -87,7 +87,8 @@ static float odom_z_last=0.0f;
 static float vins_tc=0.07f;//vins延迟0.07s
 static float lidar_tc=0.05f;//lidar延迟0.05s
 static float motion_tc=0.1f;//动捕传输延迟0.1s
-static float vins_dt=0.067f, lidar_dt=0.1f;//slam周期
+static float lidar2d_tc=0.005;//2dlidar延迟0.01s
+static float vins_dt=0.067f, lidar_dt=0.1f, lidar2d_dt=0.1;//slam周期
 static float motion_dt=0.1f;//动捕传输周期0.1s
 static float rf_alt_raw=0.0f, rf_alt_raw_last=0.0f;
 static float rf_dis_wall=0.0f;
@@ -3621,7 +3622,7 @@ static float odom_vel_x_acc=0.0f, odom_vel_y_acc=0.0f, odom_vel_x_raw=0.0f, odom
 static float odom_vel_x_buff[400], odom_vel_y_buff[400];
 static int16_t odom_vel_last_tick=0, odom_tc=0, odom_vel_tick=0;
 static bool odom_vel_init=false;
-static LowPassFilterFloat odom_vel_x_filter, odom_vel_y_filter;
+static LowPassFilterFloat odom_vel_x_filter, odom_vel_y_filter, odom_vel_x_acc_filter, odom_vel_y_acc_filter;
 void ekf_odom_xy(void){
 #if USE_ODOMETRY
 	if(!ahrs->is_initialed()||(!ahrs_healthy)){
@@ -3634,6 +3635,8 @@ void ekf_odom_xy(void){
 		}
 		odom_vel_x_filter.set_cutoff_frequency(5.0f);
 		odom_vel_y_filter.set_cutoff_frequency(5.0f);
+		odom_vel_x_acc_filter.set_cutoff_frequency(1.0f);
+		odom_vel_y_acc_filter.set_cutoff_frequency(1.0f);
 		if(USE_MOTION){
 			odom_tc=400*constrain_float(motion_tc, 0.0, 1.0);
 			odom_dt=constrain_float(motion_dt,0.05,0.2);
@@ -3642,6 +3645,10 @@ void ekf_odom_xy(void){
 			odom_tc=400*constrain_float(vins_tc, 0.0, 1.0);
 			odom_dt=constrain_float(vins_dt,0.05,0.2);
 			odom_acc_gain=0.06;
+		}else if(USE_2D_LIDAR){
+			odom_tc=400*constrain_float(lidar2d_tc, 0.0, 1.0);
+			odom_dt=constrain_float(lidar2d_dt,0.05,0.2);
+			odom_acc_gain=0.02;
 		}else{
 			odom_tc=400*constrain_float(lidar_tc, 0.0, 1.0);
 			odom_dt=constrain_float(lidar_dt,0.05,0.2);
@@ -3654,15 +3661,15 @@ void ekf_odom_xy(void){
 		return;
 	}
 	if(odom_vel_tick==0){
-		odom_vel_x_buff[odom_vel_tick]=odom_vel_x_buff[399]+get_accel_ef_filt().x*100.0*_dt;
-		odom_vel_y_buff[odom_vel_tick]=odom_vel_y_buff[399]+get_accel_ef_filt().y*100.0*_dt;
+		odom_vel_x_buff[odom_vel_tick]=odom_vel_x_buff[399]+get_accel_ef().x*100.0*_dt;
+		odom_vel_y_buff[odom_vel_tick]=odom_vel_y_buff[399]+get_accel_ef().y*100.0*_dt;
 	}else{
-		odom_vel_x_buff[odom_vel_tick]=odom_vel_x_buff[odom_vel_tick-1]+get_accel_ef_filt().x*100.0*_dt;
-		odom_vel_y_buff[odom_vel_tick]=odom_vel_y_buff[odom_vel_tick-1]+get_accel_ef_filt().y*100.0*_dt;
+		odom_vel_x_buff[odom_vel_tick]=odom_vel_x_buff[odom_vel_tick-1]+get_accel_ef().x*100.0*_dt;
+		odom_vel_y_buff[odom_vel_tick]=odom_vel_y_buff[odom_vel_tick-1]+get_accel_ef().y*100.0*_dt;
 	}
 	update_pos=true;
-	odom_vel_x_acc+=get_accel_ef_filt().x*100.0*_dt;
-	odom_vel_y_acc+=get_accel_ef_filt().y*100.0*_dt;
+	odom_vel_x_acc+=get_accel_ef().x*100.0*_dt;
+	odom_vel_y_acc+=get_accel_ef().y*100.0*_dt;
 	if(get_odom_xy){
 //		usb_printf("dt:%f|%ld",odom_dt,HAL_GetTick());
 		update_odom_time=HAL_GetTick();
@@ -3678,13 +3685,16 @@ void ekf_odom_xy(void){
 		}else if(USE_VINS){
 			odom_pos_x=odom_3d.x+odom_vel_x_raw*vins_tc;
 			odom_pos_y=odom_3d.y+odom_vel_y_raw*vins_tc;
+		}else if(USE_2D_LIDAR){
+			odom_pos_x=odom_3d.x+odom_vel_x_raw*lidar2d_tc;
+			odom_pos_y=odom_3d.y+odom_vel_y_raw*lidar2d_tc;
 		}else{
 			odom_pos_x=odom_3d.x+odom_vel_x_raw*lidar_tc;
 			odom_pos_y=odom_3d.y+odom_vel_y_raw*lidar_tc;
 		}
 	}else{
-		odom_vel_x_raw+=get_accel_ef_filt().x*100.0*_dt;
-		odom_vel_y_raw+=get_accel_ef_filt().y*100.0*_dt;
+		odom_vel_x_raw+=get_accel_ef().x*100.0*_dt;
+		odom_vel_y_raw+=get_accel_ef().y*100.0*_dt;
 		if(HAL_GetTick()-update_odom_time>1000&&robot_state==STATE_STOP){//未起飞且定位源失效
 			ekf_odometry->reset();
 			update_pos=false;
@@ -3696,8 +3706,8 @@ void ekf_odom_xy(void){
 	}
 	odom_vel_x_acc=odom_vel_x_acc*(1-odom_acc_gain)+odom_vel_x_raw*odom_acc_gain;
 	odom_vel_y_acc=odom_vel_y_acc*(1-odom_acc_gain)+odom_vel_y_raw*odom_acc_gain;
-	odom_vel_x=odom_vel_x_acc;
-	odom_vel_y=odom_vel_y_acc;
+	odom_vel_x=odom_vel_x_acc_filter.apply(odom_vel_x_acc, _dt);
+	odom_vel_y=odom_vel_y_acc_filter.apply(odom_vel_y_acc, _dt);;
 	odom_pos_x+=odom_vel_x_acc*_dt;
 	odom_pos_y+=odom_vel_y_acc*_dt;
 //	usb_printf("x:%f|y:%f, %f|%f, %f|%f\n",odom_pos_x,odom_pos_y, odom_vel_x,odom_vel_y, odom_vel_offset_x, odom_vel_offset_y);
@@ -4172,6 +4182,7 @@ void takeoff_start(float alt_cm)
     }
 
     // initialise takeoff state
+    robot_state_desired=STATE_NONE;//清空状态标志
     _takeoff=false;
     _takeoff_running = true;
     _takeoff_max_speed = speed;
@@ -4397,8 +4408,8 @@ static void update_land_detector(void)
 		time_last_attitude=0;
 	}
 	//******************落地前********************
-	if(rf_alt_raw_healthy&&get_vel_z()<0&&pos_control->get_desired_velocity().z<0){
-		if(rf_alt_raw>param->landing_lock_alt.value&&rf_alt_raw<30.0f){
+	if(rf_alt_raw_healthy&&pos_control->get_desired_velocity().z<0){
+		if(rf_alt_raw>param->landing_lock_alt.value&&rf_alt_raw<30.0f&&get_vel_z()<0){
 			if(rf_alt_raw!=rf_alt_raw_last){
 				if(lock_detector_count==0){
 					lock_detector_count++;
