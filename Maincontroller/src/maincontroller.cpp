@@ -969,7 +969,11 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 						break;
 					case MAV_CMD_NAV_LAND:
 						if(robot_state==STATE_FLYING){
-							robot_state_desired=STATE_LANDED;
+							if(robot_state_desired==STATE_LANDED){
+								robot_state_desired=STATE_NONE;
+							}else{
+								robot_state_desired=STATE_LANDED;
+							}
 							send_mavlink_commond_ack(chan, MAV_CMD_NAV_LAND, MAV_CMD_ACK_OK);
 						}
 						break;
@@ -3635,21 +3639,27 @@ void ekf_odom_xy(void){
 		}
 		odom_vel_x_filter.set_cutoff_frequency(5.0f);
 		odom_vel_y_filter.set_cutoff_frequency(5.0f);
-		odom_vel_x_acc_filter.set_cutoff_frequency(1.0f);
-		odom_vel_y_acc_filter.set_cutoff_frequency(1.0f);
 		if(USE_MOTION){
+			odom_vel_x_acc_filter.set_cutoff_frequency(5.0f);
+			odom_vel_y_acc_filter.set_cutoff_frequency(5.0f);
 			odom_tc=400*constrain_float(motion_tc, 0.0, 1.0);
 			odom_dt=constrain_float(motion_dt,0.05,0.2);
 			odom_acc_gain=0.03;
 		}else if(USE_VINS){
+			odom_vel_x_acc_filter.set_cutoff_frequency(5.0f);
+			odom_vel_y_acc_filter.set_cutoff_frequency(5.0f);
 			odom_tc=400*constrain_float(vins_tc, 0.0, 1.0);
 			odom_dt=constrain_float(vins_dt,0.05,0.2);
 			odom_acc_gain=0.06;
 		}else if(USE_2D_LIDAR){
+			odom_vel_x_acc_filter.set_cutoff_frequency(1.0f);
+			odom_vel_y_acc_filter.set_cutoff_frequency(1.0f);
 			odom_tc=400*constrain_float(lidar2d_tc, 0.0, 1.0);
 			odom_dt=constrain_float(lidar2d_dt,0.05,0.2);
 			odom_acc_gain=0.02;
 		}else{
+			odom_vel_x_acc_filter.set_cutoff_frequency(1.0f);
+			odom_vel_y_acc_filter.set_cutoff_frequency(1.0f);
 			odom_tc=400*constrain_float(lidar_tc, 0.0, 1.0);
 			odom_dt=constrain_float(lidar_dt,0.05,0.2);
 			odom_acc_gain=0.02;
