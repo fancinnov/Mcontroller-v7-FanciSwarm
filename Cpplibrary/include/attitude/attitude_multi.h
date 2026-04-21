@@ -96,7 +96,7 @@ public:
 
 	// Sets the yaw acceleration limit in degrees/s/s
 	void set_accel_yaw_max(float accel_yaw_max) { _accel_yaw_max = accel_yaw_max; }
-
+	void set_ang_vel_yaw_max(float ang_vel_yaw_max) {_ang_vel_yaw_max = ang_vel_yaw_max;}//degrees/s
 	// Sets and saves the yaw acceleration limit in degrees/s/s
 	void save_accel_yaw_max(float accel_yaw_max) ;
 

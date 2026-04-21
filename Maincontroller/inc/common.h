@@ -221,6 +221,7 @@
 #define UWB_GAIN 1.0f
 #define UWB_TAG_ID 1U
 #define UWB_TAG_MAX 1U
+#define YAW_VEL_MAX 180.0f
 
 #define UWB_POS1_X  80.0f
 #define UWB_POS1_Y -80.0f
@@ -1031,6 +1032,13 @@ typedef struct{
 		dataflash_type type=UINT32;
 		uint32_t value=COMM_4_BANDRATE;
 	}comm4_bandrate;
+
+	struct yaw_vel_max{
+		uint16_t num=63;
+		dataflash_type type=FLOAT;
+		float value=YAW_VEL_MAX;
+	}yaw_vel_max;
+
 
 	/* *************************************************
 	 * ****************Dev code begin*******************/

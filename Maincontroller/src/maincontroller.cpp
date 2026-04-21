@@ -312,6 +312,7 @@ void update_dataflash(void){
 		dataflash->set_param_uint32(param->comm2_bandrate.num, param->comm2_bandrate.value);
 		dataflash->set_param_uint32(param->comm3_bandrate.num, param->comm3_bandrate.value);
 		dataflash->set_param_uint32(param->comm4_bandrate.num, param->comm4_bandrate.value);
+		dataflash->set_param_float(param->yaw_vel_max.num, param->yaw_vel_max.value);
 		/* *************************************************
 		* ****************Dev code begin*******************/
 		// Warning! Developer can add your new code here!
@@ -391,6 +392,7 @@ void update_dataflash(void){
 		dataflash->get_param_uint32(param->comm2_bandrate.num, param->comm2_bandrate.value);
 		dataflash->get_param_uint32(param->comm3_bandrate.num, param->comm3_bandrate.value);
 		dataflash->get_param_uint32(param->comm4_bandrate.num, param->comm4_bandrate.value);
+		dataflash->get_param_float(param->yaw_vel_max.num, param->yaw_vel_max.value);
 
 		/* *************************************************
 		 * ****************Dev code begin*******************/
@@ -785,7 +787,7 @@ static mavlink_battery_status_t battery_status;
 static mavlink_rc_channels_t rc_channels_t;
 static mavlink_timesync_t system_version;
 static mavlink_system_time_t system_sn_num;
-
+static float odom_dt=0.0f;
 void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t* msg_received, mavlink_status_t* status){
 	if (mavlink_parse_char(chan, data, msg_received, status)){
 		switch (msg_received->msgid) {
@@ -948,6 +950,11 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 								use_follow=false;
 								send_mavlink_commond_follow((mavlink_channel_t)offboard_channel, 3.0);
 							}
+						}else if(is_equal(cmd.param1,5.0f)){//自由追踪
+							if(offboard_connected){
+								use_follow=true;
+								send_mavlink_commond_follow((mavlink_channel_t)offboard_channel, 5.0);
+							}
 						}
 						send_mavlink_commond_ack(chan, MAV_CMD_DO_FOLLOW, MAV_CMD_ACK_OK);
 						break;
@@ -1105,6 +1112,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 							param->comm2_bandrate.value=COMM_2_BANDRATE;
 							param->comm3_bandrate.value=COMM_3_BANDRATE;
 							param->comm4_bandrate.value=COMM_4_BANDRATE;
+							param->yaw_vel_max.value=YAW_VEL_MAX;
 
 							dataflash->set_param_float(param->acro_y_expo.num, param->acro_y_expo.value);
 							dataflash->set_param_float(param->acro_yaw_p.num, param->acro_yaw_p.value);
@@ -1145,6 +1153,7 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 							dataflash->set_param_uint32(param->comm2_bandrate.num, param->comm2_bandrate.value);
 							dataflash->set_param_uint32(param->comm3_bandrate.num, param->comm3_bandrate.value);
 							dataflash->set_param_uint32(param->comm4_bandrate.num, param->comm4_bandrate.value);
+							dataflash->set_param_float(param->yaw_vel_max.num, param->yaw_vel_max.value);
 
 							dataflash->set_param_float(param->angle_roll_p.num, param->angle_roll_p.value);
 							dataflash->set_param_float(param->angle_pitch_p.num, param->angle_pitch_p.value);
@@ -1754,6 +1763,15 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 							mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
 							mavlink_send_buffer(chan, &msg_command_long);
 							break;
+						case 51:
+							param->yaw_vel_max.value=cmd.param2;
+							dataflash->set_param_float(param->yaw_vel_max.num, param->yaw_vel_max.value);
+							command_long.command=MAV_CMD_DO_SET_PARAMETER;
+							command_long.param1=51.0f;
+							command_long.param2=param->yaw_vel_max.value;
+							mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+							mavlink_send_buffer(chan, &msg_command_long);
+							break;
 						/* *************************************************
 						 * ****************Dev code begin*******************/
 						// Warning! Developer can add your new code here!
@@ -1889,6 +1907,9 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 				}
 				if(odom_2d<=50.0f){
 					odom_safe=true;
+				}
+				if((HAL_GetTick()-get_odom_time)<odom_dt*500){
+					odom_safe=false;
 				}
 				odom_2d_x_last=odom_3d.x;
 				odom_2d_y_last=odom_3d.y;
@@ -2837,6 +2858,11 @@ void send_mavlink_param_list(mavlink_channel_t chan)
 	command_long.param2=(float)param->comm4_bandrate.value;//波特率
 	mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
 	mavlink_send_buffer(chan, &msg_command_long);
+
+	command_long.param1=51.0f;
+	command_long.param2=param->yaw_vel_max.value;
+	mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+	mavlink_send_buffer(chan, &msg_command_long);
 	/* *************************************************
 	 * ****************Dev code begin*******************/
 	// Warning! Developer can add your new code here!
@@ -3621,7 +3647,7 @@ float get_wall_vel_z(void){
 }
 
 static uint32_t update_odom_time=0;
-static float odom_pos_x=0.0f, odom_pos_y=0.0f, odom_vel_x=0.0f, odom_vel_y=0.0f, odom_dt=0.0f, odom_acc_gain=0.02f;
+static float odom_pos_x=0.0f, odom_pos_y=0.0f, odom_vel_x=0.0f, odom_vel_y=0.0f, odom_acc_gain=0.02f;
 static float odom_vel_x_acc=0.0f, odom_vel_y_acc=0.0f, odom_vel_x_raw=0.0f, odom_vel_y_raw=0.0f;
 static float odom_vel_x_buff[400], odom_vel_y_buff[400];
 static int16_t odom_vel_last_tick=0, odom_tc=0, odom_vel_tick=0;
@@ -3699,6 +3725,16 @@ void ekf_odom_xy(void){
 			odom_pos_x=odom_3d.x+odom_vel_x_raw*lidar2d_tc;
 			odom_pos_y=odom_3d.y+odom_vel_y_raw*lidar2d_tc;
 		}else{
+			if(abs(odom_dx)>5.0f){
+				odom_vel_x_acc_filter.set_cutoff_frequency(5.0f);
+			}else{
+				odom_vel_x_acc_filter.set_cutoff_frequency(MAX(abs(odom_dx),1.0f));
+			}
+			if(abs(odom_dy)>5.0f){
+				odom_vel_y_acc_filter.set_cutoff_frequency(5.0f);
+			}else{
+				odom_vel_y_acc_filter.set_cutoff_frequency(MAX(abs(odom_dy),1.0f));
+			}
 			odom_pos_x=odom_3d.x+odom_vel_x_raw*lidar_tc;
 			odom_pos_y=odom_3d.y+odom_vel_y_raw*lidar_tc;
 		}
@@ -4753,8 +4789,8 @@ void Logger_Cat_Callback(void){
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s %8s %8s ",//OFFBOARD
 			"uwb_x", "uwb_y", "odom_x", "odom_y", "odom_z", "mav_x_t", "mav_y_t", "mav_z_t", "goal_x", "goal_y", "goal_z");
 	osDelay(2);
-	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s ",//OFFBOARD
-			"mav_v_x", "mav_v_y", "mav_v_z", "mav_a_x", "mav_a_y", "mav_a_z", "mav_yaw", "mav_rate");
+	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s ",//OFFBOARD
+			"odom_yaw", "mav_v_x", "mav_v_y", "mav_v_z", "mav_a_x", "mav_a_y", "mav_a_z", "mav_yaw", "mav_rate");
 	osDelay(2);
 	sd_log_write("%8s %8s %8s %8s %8s %8s %8s %8s %8s ",//LOG_ANCHOR
 			"dis12", "dis23", "dis34", "dis1", "dis2", "dis3", "dis4", "lat", "lon");
@@ -4810,8 +4846,8 @@ void Logger_Data_Callback(void){
 	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//OFFBOARD
 			get_uwb_x(), get_uwb_y(), get_odom_x(), get_odom_y(), get_odom_z(), get_mav_x_target(), get_mav_y_target(), get_mav_z_target(), set_goal_point.x, set_goal_point.y, set_goal_point.z);
 	osDelay(2);
-	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//OFFBOARD
-			get_mav_vx_target(), get_mav_vy_target(), get_mav_vz_target(), get_mav_ax_target(), get_mav_ay_target(), get_mav_az_target(), get_mav_yaw_target(), get_mav_yaw_rate_target());
+	sd_log_write("%8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f %8.3f ",//OFFBOARD
+			yaw_map*RAD_TO_DEG, get_mav_vx_target(), get_mav_vy_target(), get_mav_vz_target(), get_mav_ax_target(), get_mav_ay_target(), get_mav_az_target(), get_mav_yaw_target(), get_mav_yaw_rate_target());
 	osDelay(2);
 	sd_log_write("%8.3f %8.3f %8.3f %8d %8d %8d %8d %8ld %8ld ",//LOG_ANCHOR
 			uwb->get_range_distance(1,2),uwb->get_range_distance(2,3),uwb->get_range_distance(3,4),uwb->Anchordistance[0], uwb->Anchordistance[1], uwb->Anchordistance[2], uwb->Anchordistance[3], gps_position->lat, gps_position->lon);

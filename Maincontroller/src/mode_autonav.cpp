@@ -22,6 +22,8 @@ static Vector2f goal_2d;
 static bool goal_reset=false, goal_set=false;
 static bool use_surface_track=true;
 static int16_t esc_counter=0, esc_delay=0;
+static bool set_relative=false;
+static float alt_dis=0.0f;
 bool mode_autonav_init(void){
 	if(motors->get_armed()){//电机未锁定,禁止切换至该模式
 		Buzzer_set_ring_type(BUZZER_ERROR);
@@ -57,7 +59,7 @@ void mode_autonav(void){
 	pos_control->set_accel_z(param->pilot_accel_z.value);
 	pos_control->set_speed_xy(param->poshold_vel_max.value);
 	pos_control->set_accel_xy(param->poshold_accel_max.value);
-
+	attitude->set_ang_vel_yaw_max(param->yaw_vel_max.value);
 	// get pilot desired lean angles
 	float target_roll, target_pitch;
 	get_pilot_desired_lean_angles(target_roll, target_pitch, param->angle_max.value, attitude->get_althold_lean_angle_max());
@@ -295,6 +297,11 @@ void mode_autonav(void){
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
 			pos_control->set_xy_target(get_pos_x(), get_pos_y());
 			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
+			if(relative_alt!=0.0f){
+				relative_alt=0.0f;
+				pos_control->set_alt_target(get_pos_z());
+				set_target_rangefinder_alt(rangefinder_state.alt_cm);
+			}
 		}else if(ch7>0.3&&ch7<0.7){//位置模式
 			robot_spec_mode=MODE_POSITION;
 			target_yaw+=target_yaw_rate*_dt;
@@ -305,6 +312,11 @@ void mode_autonav(void){
 			target_roll=pos_control->get_roll();
 			target_pitch=pos_control->get_pitch();
 			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
+			if(relative_alt!=0.0f){
+				relative_alt=0.0f;
+				pos_control->set_alt_target(get_pos_z());
+				set_target_rangefinder_alt(rangefinder_state.alt_cm);
+			}
 		}else{//自主模式
 			robot_spec_mode=MODE_AUTO;
 			if((HAL_GetTick()-takeoff_time)<2000){
@@ -360,7 +372,19 @@ void mode_autonav(void){
 							}
 							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
 							pos_control->set_desired_accel_xy(0.0f, 0.0f);
-							relative_alt=get_mav_z_target();
+							alt_dis=get_mav_z_target()+landing_alt-pos_control->get_alt_target();
+							if(alt_dis>1.0f){
+								relative_alt=pos_control->get_alt_target()-landing_alt+param->pilot_speed_up.value*_dt;
+							}else if(alt_dis<-1.0f){
+								relative_alt=pos_control->get_alt_target()-landing_alt-param->pilot_speed_dn.value*_dt;
+							}else{
+								relative_alt=get_mav_z_target();
+							}
+							if(get_mav_vz_target()==0.0f){
+								set_relative=false;
+							}else{
+								set_relative=true;
+							}
 							break;
 						default:
 							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
@@ -373,7 +397,11 @@ void mode_autonav(void){
 							if(!USE_ODOM_Z){
 								relative_alt=MAX(relative_alt,30.0f);
 							}
-							set_target_rangefinder_alt(relative_alt+landing_alt);
+							if(set_relative){
+								set_target_rangefinder_alt(relative_alt+landing_alt-get_pos_z()+rangefinder_state.alt_cm);
+							}else{
+								set_target_rangefinder_alt(relative_alt+landing_alt);
+							}
 						}
 						if(!rangefinder_state.alt_healthy||!use_surface_track){
 							pos_control->set_alt_target(relative_alt+landing_alt);
@@ -415,7 +443,10 @@ void mode_autonav(void){
 		}
 
 		if(robot_state_desired==STATE_LANDED){//自动降落
-			target_climb_rate=-constrain_float(param->auto_land_speed.value, 0.0f, param->pilot_speed_dn.value);//设置降落速度cm/s
+			target_climb_rate=-MAX(30,abs(param->pilot_speed_dn.value));//设置降落速度cm/s
+			if(rangefinder_state.alt_healthy&&!USE_ODOM_Z&&rangefinder_state.alt_cm<200.0f){
+				target_climb_rate=-MAX(20,abs(param->auto_land_speed.value));//限制降落速度cm/s
+			}
 		}
 
 		// adjust climb rate using rangefinder
