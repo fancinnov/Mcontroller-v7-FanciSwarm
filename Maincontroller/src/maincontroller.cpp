@@ -3234,7 +3234,7 @@ bool gyro_calibrate(void){
 
 static uint16_t clear_mag_correct_delta=0;
 static Vector3f mag_orin, mag_curr, mag_offset;
-static float c_last=0.0f,c_gain=1.0f;
+static float c_gain=1.0f;
 void update_mag_data(void){
 #if USE_MAG
 	mag.x = qmc5883_data.magf.x;
@@ -3271,13 +3271,11 @@ void update_mag_data(void){
 		if(robot_state==STATE_TAKEOFF||robot_state==STATE_LANDED){//起飞时禁用磁罗盘
 			mag_corrected=false;
 			clear_mag_correct_delta=800;
-			c_last=0.0f;
 			mag_offset.zero();
 		}else if(robot_state==STATE_FLYING){
 			if(clear_mag_correct_delta>0){
 				mag_corrected=false;
 				if(clear_mag_correct_delta<=200){//电流磁偏
-					c_last+=get_batt_current()*0.005;
 					mag_curr=dcm_matrix.transposed()*mag_orin;
 					mag_offset.x+=(mag_filt.x-mag_curr.x)*0.005;
 					mag_offset.y+=(mag_filt.y-mag_curr.y)*0.005;
@@ -3290,11 +3288,6 @@ void update_mag_data(void){
 				clear_mag_correct_delta--;
 			}else{
 				mag_corrected=true;
-				if(c_last>3.0f){
-					c_gain=get_batt_current()/c_last;
-				}else{
-					c_gain=1.0f;
-				}
 				mag_correct-=mag_offset*c_gain;
 			}
 		}else{
