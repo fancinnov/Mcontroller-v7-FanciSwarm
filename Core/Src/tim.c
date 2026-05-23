@@ -34,6 +34,8 @@ TIM_HandleTypeDef htim13;
 TIM_HandleTypeDef htim14;
 TIM_HandleTypeDef htim16;
 TIM_HandleTypeDef htim17;
+DMA_HandleTypeDef hdma_tim1_up;
+DMA_HandleTypeDef hdma_tim4_up;
 
 /* TIM1 init function */
 void MX_TIM1_Init(void)
@@ -487,6 +489,25 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* tim_pwmHandle)
     /* TIM1 clock enable */
     __HAL_RCC_TIM1_CLK_ENABLE();
 
+    /* TIM1 DMA Init */
+    /* TIM1_UP Init */
+    hdma_tim1_up.Instance = DMA1_Stream6;
+    hdma_tim1_up.Init.Request = DMA_REQUEST_TIM1_UP;
+    hdma_tim1_up.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    hdma_tim1_up.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_tim1_up.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_tim1_up.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
+    hdma_tim1_up.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
+    hdma_tim1_up.Init.Mode = DMA_NORMAL;
+    hdma_tim1_up.Init.Priority = DMA_PRIORITY_VERY_HIGH;
+    hdma_tim1_up.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_tim1_up) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(tim_pwmHandle,hdma[TIM_DMA_ID_UPDATE],hdma_tim1_up);
+
     /* TIM1 interrupt Init */
     HAL_NVIC_SetPriority(TIM1_UP_IRQn, 5, 0);
     HAL_NVIC_EnableIRQ(TIM1_UP_IRQn);
@@ -518,6 +539,25 @@ void HAL_TIM_PWM_MspInit(TIM_HandleTypeDef* tim_pwmHandle)
   /* USER CODE END TIM4_MspInit 0 */
     /* TIM4 clock enable */
     __HAL_RCC_TIM4_CLK_ENABLE();
+
+    /* TIM4 DMA Init */
+    /* TIM4_UP Init */
+    hdma_tim4_up.Instance = DMA1_Stream7;
+    hdma_tim4_up.Init.Request = DMA_REQUEST_TIM4_UP;
+    hdma_tim4_up.Init.Direction = DMA_MEMORY_TO_PERIPH;
+    hdma_tim4_up.Init.PeriphInc = DMA_PINC_DISABLE;
+    hdma_tim4_up.Init.MemInc = DMA_MINC_ENABLE;
+    hdma_tim4_up.Init.PeriphDataAlignment = DMA_PDATAALIGN_HALFWORD;
+    hdma_tim4_up.Init.MemDataAlignment = DMA_MDATAALIGN_HALFWORD;
+    hdma_tim4_up.Init.Mode = DMA_NORMAL;
+    hdma_tim4_up.Init.Priority = DMA_PRIORITY_VERY_HIGH;
+    hdma_tim4_up.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
+    if (HAL_DMA_Init(&hdma_tim4_up) != HAL_OK)
+    {
+      Error_Handler();
+    }
+
+    __HAL_LINKDMA(tim_pwmHandle,hdma[TIM_DMA_ID_UPDATE],hdma_tim4_up);
 
     /* TIM4 interrupt Init */
     HAL_NVIC_SetPriority(TIM4_IRQn, 5, 0);
@@ -761,6 +801,9 @@ void HAL_TIM_PWM_MspDeInit(TIM_HandleTypeDef* tim_pwmHandle)
     /* Peripheral clock disable */
     __HAL_RCC_TIM1_CLK_DISABLE();
 
+    /* TIM1 DMA DeInit */
+    HAL_DMA_DeInit(tim_pwmHandle->hdma[TIM_DMA_ID_UPDATE]);
+
     /* TIM1 interrupt Deinit */
     HAL_NVIC_DisableIRQ(TIM1_UP_IRQn);
     HAL_NVIC_DisableIRQ(TIM1_TRG_COM_IRQn);
@@ -789,6 +832,9 @@ void HAL_TIM_PWM_MspDeInit(TIM_HandleTypeDef* tim_pwmHandle)
   /* USER CODE END TIM4_MspDeInit 0 */
     /* Peripheral clock disable */
     __HAL_RCC_TIM4_CLK_DISABLE();
+
+    /* TIM4 DMA DeInit */
+    HAL_DMA_DeInit(tim_pwmHandle->hdma[TIM_DMA_ID_UPDATE]);
 
     /* TIM4 interrupt Deinit */
     HAL_NVIC_DisableIRQ(TIM4_IRQn);
