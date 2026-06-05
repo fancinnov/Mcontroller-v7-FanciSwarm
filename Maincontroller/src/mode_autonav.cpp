@@ -380,11 +380,9 @@ void mode_autonav(void){
 							}else{
 								relative_alt=get_mav_z_target();
 							}
-							if(get_mav_vz_target()==0.0f){
+							if(rangefinder_state.alt_healthy){
+								relative_alt=get_mav_z_target();
 								set_relative=false;
-								if(rangefinder_state.alt_healthy){
-									relative_alt=get_mav_z_target();
-								}
 							}else{
 								set_relative=true;
 							}
