@@ -191,6 +191,9 @@ extern LC302_Data lc302_data;
 extern PWM_Channel pwm_channel;
 
 /****************c/c++ interface*******************************/
+void set_fs_rid(uint8_t fs_uid_type, uint64_t sn_num);
+void rid_packet_send_all(void);
+bool check_activated(void);
 void set_comm_bandrate(void);
 void rc_range_init(void);
 void motors_init(void);

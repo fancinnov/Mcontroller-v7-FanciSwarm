@@ -342,7 +342,7 @@ bool use_ego_mission(void);
 
 float get_vib_value(void);
 float get_vib_angle_z(void);
-
+void rid_save_takeoff_pos(void);
 bool get_gcs_connected(void);
 bool get_offboard_connected(void);
 bool get_gnss_location_state(void);
@@ -1039,6 +1039,29 @@ typedef struct{
 		float value=YAW_VEL_MAX;
 	}yaw_vel_max;
 
+	struct drone_activated{
+		uint16_t num=64;
+		dataflash_type type=UINT8;
+		uint8_t value=0;
+	}drone_activated;
+
+	struct activated_time{
+		uint16_t num=65;
+		dataflash_type type=UINT32;
+		uint32_t value=0;
+	}activated_time;
+
+	struct real_name_reg{
+		uint16_t num=66;
+		dataflash_type type=UINT32;
+		uint32_t value=0;
+	}real_name_reg;
+
+	struct fs_uid_type{
+		uint16_t num=67;
+		dataflash_type type=UINT8;
+		uint8_t value=0;
+	}fs_uid_type;
 
 	/* *************************************************
 	 * ****************Dev code begin*******************/

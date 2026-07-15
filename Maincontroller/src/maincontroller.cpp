@@ -313,6 +313,10 @@ void update_dataflash(void){
 		dataflash->set_param_uint32(param->comm3_bandrate.num, param->comm3_bandrate.value);
 		dataflash->set_param_uint32(param->comm4_bandrate.num, param->comm4_bandrate.value);
 		dataflash->set_param_float(param->yaw_vel_max.num, param->yaw_vel_max.value);
+		dataflash->set_param_uint8(param->drone_activated.num, param->drone_activated.value);
+		dataflash->set_param_uint32(param->activated_time.num, param->activated_time.value);
+		dataflash->set_param_uint32(param->real_name_reg.num, param->real_name_reg.value);
+		dataflash->set_param_uint8(param->fs_uid_type.num, param->fs_uid_type.value);
 		/* *************************************************
 		* ****************Dev code begin*******************/
 		// Warning! Developer can add your new code here!
@@ -393,6 +397,10 @@ void update_dataflash(void){
 		dataflash->get_param_uint32(param->comm3_bandrate.num, param->comm3_bandrate.value);
 		dataflash->get_param_uint32(param->comm4_bandrate.num, param->comm4_bandrate.value);
 		dataflash->get_param_float(param->yaw_vel_max.num, param->yaw_vel_max.value);
+		dataflash->get_param_uint8(param->drone_activated.num, param->drone_activated.value);
+		dataflash->get_param_uint32(param->activated_time.num, param->activated_time.value);
+		dataflash->get_param_uint32(param->real_name_reg.num, param->real_name_reg.value);
+		dataflash->get_param_uint8(param->fs_uid_type.num, param->fs_uid_type.value);
 
 		/* *************************************************
 		 * ****************Dev code begin*******************/
@@ -406,6 +414,7 @@ void update_dataflash(void){
 		/* ****************Dev code end*********************
 		 * *************************************************/
 	}
+	set_fs_rid(param->fs_uid_type.value, sn_num);
 }
 
 void set_comm_bandrate(void){
@@ -1772,6 +1781,44 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 							mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
 							mavlink_send_buffer(chan, &msg_command_long);
 							break;
+						case 52:
+							param->drone_activated.value=(uint8_t)(cmd.param2 == 1.0f ? 1:0);//无人机激活状态:0-未激活,1-激活
+							dataflash->set_param_uint8(param->drone_activated.num,param->drone_activated.value);
+							command_long.command=MAV_CMD_DO_SET_PARAMETER;
+							command_long.param1=52.0f;
+							command_long.param2=(float)param->drone_activated.value;
+							mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+							mavlink_send_buffer(chan, &msg_command_long);
+							break;
+						case 53:
+							param->activated_time.value=((uint32_t)cmd.param2 << 16) | ((uint32_t)cmd.param3 & 0xffff); //激活时间 (unix sec)
+							dataflash->set_param_uint32(param->activated_time.num,param->activated_time.value);
+							command_long.command=MAV_CMD_DO_SET_PARAMETER;
+							command_long.param1=53.0f;
+							command_long.param2=(float)(param->activated_time.value>>16);
+							command_long.param3=(float)(param->activated_time.value&0xffff);
+							mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+							mavlink_send_buffer(chan, &msg_command_long);
+							break;
+						case 54:
+							param->real_name_reg.value = ((uint32_t)cmd.param2) * 10000 + (uint32_t)cmd.param3;//实名登记号
+							dataflash->set_param_uint32(param->real_name_reg.num,param->real_name_reg.value);
+							command_long.command=MAV_CMD_DO_SET_PARAMETER;
+							command_long.param1=54.0f;
+							command_long.param2=(float)(param->real_name_reg.value/10000);
+							command_long.param3=(float)(param->real_name_reg.value%10000);
+							mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+							mavlink_send_buffer(chan, &msg_command_long);
+							break;
+						case 55:
+							param->fs_uid_type.value=(uint8_t)cmd.param2;
+							dataflash->set_param_uint8(param->fs_uid_type.num, param->fs_uid_type.value);
+							command_long.command=MAV_CMD_DO_SET_PARAMETER;
+							command_long.param1=55.0f;
+							command_long.param2=(float)param->fs_uid_type.value;
+							mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+							mavlink_send_buffer(chan, &msg_command_long);
+							break;
 						/* *************************************************
 						 * ****************Dev code begin*******************/
 						// Warning! Developer can add your new code here!
@@ -2863,6 +2910,28 @@ void send_mavlink_param_list(mavlink_channel_t chan)
 	command_long.param2=param->yaw_vel_max.value;
 	mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
 	mavlink_send_buffer(chan, &msg_command_long);
+
+	command_long.param1=52.0f;
+	command_long.param2=(float)param->drone_activated.value;
+	mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+	mavlink_send_buffer(chan, &msg_command_long);
+
+	command_long.param1=53.0f;
+	command_long.param2=(float)(param->activated_time.value>>16);
+	command_long.param3=(float)(param->activated_time.value&0xffff);
+	mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+	mavlink_send_buffer(chan, &msg_command_long);
+
+	command_long.param1=54.0f;
+	command_long.param2=(float)(param->real_name_reg.value/10000);
+	command_long.param3=(float)(param->real_name_reg.value%10000);
+	mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+	mavlink_send_buffer(chan, &msg_command_long);
+
+	command_long.param1=55.0f;
+	command_long.param2=(float)param->fs_uid_type.value;
+	mavlink_msg_command_long_encode(mavlink_system.sysid, mavlink_system.compid, &msg_command_long, &command_long);
+	mavlink_send_buffer(chan, &msg_command_long);
 	/* *************************************************
 	 * ****************Dev code begin*******************/
 	// Warning! Developer can add your new code here!
@@ -3499,10 +3568,7 @@ void gnss_update(void){
 		}
 		if(gps_position->heading_status==4&&USE_MAG){
 			if(yaw_gnss_flag>=20){
-				yaw_gnss_offset=wrap_PI(gps_position->heading*DEG_TO_RAD-yaw_rad);
-				if(fabsf(yaw_gnss_offset)>M_PI_2){
-					yaw_gnss_offset=wrap_PI(yaw_gnss_offset+M_PI);
-				}
+				yaw_gnss_offset=wrap_PI(gps_position->heading*DEG_TO_RAD-M_PI_2-yaw_rad);
 				ahrs->set_declination(ahrs->get_declination()+yaw_gnss_offset);
 				yaw_gnss_flag=0;
 			}
@@ -4221,6 +4287,7 @@ void takeoff_start(float alt_cm)
     }
 
     // initialise takeoff state
+	rid_save_takeoff_pos();
     robot_state_desired=STATE_NONE;//清空状态标志
     _takeoff=false;
     _takeoff_running = true;
@@ -4970,6 +5037,7 @@ void comm_send_callback(void){
 //		mavlink_send_buffer((mavlink_channel_t)offboard_channel, &msg_attitude_quaternion);
 	}
 	flush_serial_data((mavlink_channel_t)offboard_channel);
+	flush_serial_data((mavlink_channel_t)gnss_comm);
 	flush_usb_data();
 }
 

@@ -481,6 +481,7 @@ void HeartbeatTask(void *argument)
 	  osDelay(100);
 	  FMU_LED1_Control(false);
 	  sdled_update();
+	  rid_packet_send_all();
 	  vTaskDelayUntil(&PreviousWakeTime, TimeIncrement);
   }
   /* USER CODE END HeartbeatTask */
