@@ -87,6 +87,9 @@
 //配置LED
 #define FMU_LED_CONTROLL_ENABLE 1 // if use system default led control, set 1; if you want to control led by yourself, set 0;
 
+//配置Mlink
+#define USE_MLINK 1 // 0 not use; 1 ESP; 2 WB2
+
 //配置磁罗盘
 #define USE_MAG 1 // if use mag, set 1; if not use mag, set 0;
 
@@ -131,6 +134,8 @@
 //是否使用C12热成像云台相机
 #define USE_C12 0 // 启用：1 不启用：0
 
+#define CHECK_G12 0 // 启用：1 不启用：0
+
 //是否使用CH8控制舵机
 #define USE_CH8_SERVO 0
 
@@ -141,6 +146,8 @@
 #define USE_ENCODER 0 //启用：1 不启用：0
 
 #define PERCHING_MODE 0
+
+#define STATION_MODE 0
 
 //配置flash
 #define USE_FRAM 2 //保持默认值,请勿更改
@@ -161,7 +168,7 @@
 	#define DATA_FLASH_LENGTH ((uint32_t)0x00000020) /* each data package takes 32 bytes */
 #endif
 
-#define VERSION_HARDWARE 718
-#define VERSION_FIRMWARE 2026071501
+#define VERSION_HARDWARE 721
+#define VERSION_FIRMWARE 2026082401
 
 #endif /* INCLUDE_CONFIG_H_ */

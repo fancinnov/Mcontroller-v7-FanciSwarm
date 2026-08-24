@@ -191,7 +191,7 @@ extern LC302_Data lc302_data;
 extern PWM_Channel pwm_channel;
 
 /****************c/c++ interface*******************************/
-void set_fs_rid(uint8_t fs_uid_type, uint64_t sn_num);
+void set_fs_rid(uint8_t fs_uid_type, uint64_t sn_num, uint32_t uas, uint8_t drone_activated);
 void rid_packet_send_all(void);
 bool check_activated(void);
 void set_comm_bandrate(void);
@@ -221,7 +221,8 @@ void update_tf2mini_data(float dis);
 void opticalflow_update(void);
 void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t* msg_received, mavlink_status_t* status);
 void distribute_mavlink_data(void);
-void send_mavlink_heartbeat_data(void);
+void send_mavlink_heartbeat_data(uint8_t req_id);
+void send_heartbeat_request(uint8_t req_id);
 void Logger_Update(void);
 void reset_dataflash(void);
 void update_dataflash(void);
@@ -242,6 +243,7 @@ bool get_task_initialed(void);
 uint32_t get_time_us(void);
 
 void config_callback(void);
+void station_callback(void);
 void comm_callback(void);
 void COMM1_Callback(void);//串口1中断回调函数
 void COMM2_Callback(void);//串口2中断回调函数
@@ -432,7 +434,11 @@ void config_comm(void);
 void reset_usb(void);
 void check_usb_reset(void);
 void comm_data_flush(void);//清空USB和串口接收缓存
-void use_mlink_esp(mavlink_channel_t chan);
+void comm0_data_flush(void);//清空USB接收缓存
+void comm1_data_flush(void);//清空串口1接收缓存
+void comm2_data_flush(void);//清空串口2接收缓存
+void comm3_data_flush(void);//清空串口3接收缓存
+void comm4_data_flush(void);//清空串口4接收缓存
 /*****************************以下为usb+串口接收数据相关函数******************************/
 uint16_t get_comm0_available(void);	//判断usb口是否有数据收到,有数据收到则返回接收到的byte数,没有数据收到返回0;	(注意：该函数只有在usb口是自定义模式 DEV_COMM 时才有效)
 uint16_t get_comm1_available(void);	//判断串口1是否有数据收到,有数据收到则返回接收到的byte数,没有数据收到返回0;	(注意：该函数只有在串口1是自定义模式 DEV_COMM 时才有效)
@@ -713,6 +719,11 @@ void PPM_RX_InterruptHandler(void);
 void SBUS_RX_InterruptHandler(void);
 HAL_StatusTypeDef sbus_output_buf(uint8_t* buf, uint16_t size);
 HAL_StatusTypeDef sbus_output_buf_delayms(uint8_t* buf, uint16_t size, uint32_t timeout);
+void set_sbus_lost_frame(bool lost_frame);
+void set_sbus_failsafe(bool failsafe);
+void set_sbus_ch17_ch18(bool ch17, bool ch18);
+void set_sbus_channel_value(uint8_t channel, uint16_t value);//channel:0~15, value:1000~2000
+void sbus_output(void);//发送subs数据包
 void RC_Input_Init(uint8_t mode);//初始化遥控接收机（PPM/SBUS）
 void RC_Input_Loop(void);//接收遥控器数据
 void rc_range_cal(void);
@@ -724,7 +735,8 @@ extern uint16_t *mav_channels_in;
 bool rc_channels_healthy(void);
 
 //初始化wifi模组
-void wifi_init(void);
+void wifi_init(uint8_t mode);
+void use_mlink(uint8_t mode, mavlink_channel_t chan);
 
 //设置14个通道的遥控器信号（系统已经调用过了，一般情况下无需再次调用）
 //@range: _channel_roll/_channel_pitch/_channel_yaw:-1.0~1.0; _channel_throttle:0~1.0;

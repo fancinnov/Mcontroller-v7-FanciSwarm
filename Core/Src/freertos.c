@@ -319,8 +319,7 @@ void InitTask(void *argument)
   update_dataflash();
   set_comm_bandrate();
   RC_Input_Init(RC_INPUT_SBUS);
-  wifi_init();
-  use_mlink_esp(MAVLINK_COMM_4);
+  use_mlink(USE_MLINK, MAVLINK_COMM_4);
   IMU_Init();
   MAG_Init();
   while(BARO_Init());
@@ -396,6 +395,8 @@ void Loop200hzTask(void *argument)
 	  osThreadFlagsWait(1, osFlagsWaitAny, osWaitForever);
 #if COMM_0==CONFIG_COMM
 	  config_callback();
+#elif STATION_MODE
+	  station_callback();
 #else
 	  comm_callback();
 #endif
@@ -476,7 +477,7 @@ void HeartbeatTask(void *argument)
   {
 	  FMU_LED1_Control(true);
 #if COMM_0!=CONFIG_COMM
-	  send_mavlink_heartbeat_data();
+	  send_mavlink_heartbeat_data(MAV_COMP_ID_AUTOPILOT1);
 #endif
 	  osDelay(100);
 	  FMU_LED1_Control(false);

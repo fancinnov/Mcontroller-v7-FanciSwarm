@@ -279,7 +279,7 @@ void mode_autonav(void){
 		motors->set_desired_spool_state(Motors::DESIRED_THROTTLE_UNLIMITED);
 
 		// call attitude controller
-		if((use_gcs||use_rc)&&!rc_channels_healthy()&&!get_gcs_connected()){
+		if((use_gcs&&!get_gcs_connected())||(use_rc&&!rc_channels_healthy())){
 			robot_state_desired=STATE_LANDED;
 			target_roll=0.0f;
 			target_pitch=0.0f;
