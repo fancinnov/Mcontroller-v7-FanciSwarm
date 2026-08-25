@@ -3717,8 +3717,6 @@ void uwb_position_update(void){
 		uwb_pos.y=constrain_float(uwb_pos.y, ned_current_pos.y-50.0f, ned_current_pos.y+50.0f);
 	}
 	uwb_pos = _uwb_pos_filter.apply(uwb_pos, (float)(currunt_uwb_ms-last_uwb_ms)*0.001f);
-	ned_current_pos.x+=(uwb_pos.x-ned_current_pos.x)*uwb_pos_gain;
-	ned_current_pos.y+=(uwb_pos.y-ned_current_pos.y)*uwb_pos_gain;
 	last_uwb_ms = currunt_uwb_ms;
 	use_uwb=true;
 #endif
@@ -3919,6 +3917,10 @@ void ekf_odom_xy(void){
 			}
 			odom_pos_x+=odom_vel_x_raw*_dt;
 			odom_pos_y+=odom_vel_y_raw*_dt;
+		}
+		if(get_uwb_pos){
+			odom_pos_x+=(uwb_pos.x-odom_pos_x)*uwb_pos_gain;
+			odom_pos_y+=(uwb_pos.y-odom_pos_y)*uwb_pos_gain;
 		}
 		odom_vel_x_acc=odom_vel_x_acc*(1-odom_optical_gain)+odom_vel_x_raw*odom_optical_gain;
 		odom_vel_y_acc=odom_vel_y_acc*(1-odom_optical_gain)+odom_vel_y_raw*odom_optical_gain;
