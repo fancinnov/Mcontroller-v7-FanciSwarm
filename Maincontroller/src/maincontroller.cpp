@@ -2104,8 +2104,12 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 //				usb_printf("pose:%f|%f|%f|%d\n",pose.x,pose.y,pose.z,HAL_GetTick());
 				break;
 			case MAVLINK_MSG_ID_SET_ACTUATOR_CONTROL_TARGET:
-				mavlink_msg_set_actuator_control_target_decode(msg_received, &actuator);
+				mavlink_msg_set_actuator_control_target_decode(msg_received, &actuator);//-1.0~1.0
 //				usb_printf("actuator:%f|%f|%f|%f|%f|%f|%f|%f\n",actuator.controls[0],actuator.controls[1],actuator.controls[2],actuator.controls[3],actuator.controls[4],actuator.controls[5],actuator.controls[6],actuator.controls[7]);
+//				Servo_Set_Value(1, 1000+500*actuator.controls[0]);
+//				Servo_Set_Value(2, 1000+500*actuator.controls[1]);
+//				Servo_Set_Value(3, 1000+500*actuator.controls[2]);
+//				Servo_Set_Value(4, 1000+500*actuator.controls[3]);
 				break;
 			default:
 				break;
