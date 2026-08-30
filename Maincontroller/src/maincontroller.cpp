@@ -850,13 +850,14 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 					}
 				}
 				if(CHECK_G12){
-					if(heartbeat.base_mode==MAV_MODE_FLAG_CUSTOM_MODE_ENABLED){//天线接好
+					if(heartbeat.base_mode&MAV_MODE_FLAG_CUSTOM_MODE_ENABLED){//天线接好
 						g12_ant_healthy=true;
-					}else if(heartbeat.base_mode==0){
+					}else if(heartbeat.base_mode&MAV_MODE_FLAG_CUSTOM_MODE_ENABLED==0){
 						g12_ant_healthy=false;
 					}
-					if(heartbeat.system_status<40){//g12信号不好
-						robot_state_desired=STATE_LANDED;
+					if(heartbeat.system_status>1&&heartbeat.system_status<40){//g12信号不好,自动返航
+						set_return(true);
+						send_mavlink_commond_ack(chan, MAV_CMD_NAV_RETURN_TO_LAUNCH, MAV_CMD_ACK_OK);
 					}
 				}
 				if(msg_received->sysid==254){

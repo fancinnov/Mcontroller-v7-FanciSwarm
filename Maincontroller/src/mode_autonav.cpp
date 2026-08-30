@@ -24,6 +24,13 @@ static bool use_surface_track=true;
 static int16_t esc_counter=0, esc_delay=0;
 static bool set_relative=false;
 static float alt_dis=0.0f;
+static bool execute_land=false;
+static bool execute_return=false;
+static bool reach_return_alt=false;
+static Vector3f ned_last_pos, ned_takeoff_pos;
+static Vector2f ned_dis_2d_smooth;
+static float smooth_dt=0.0f;
+static bool climb_up=false,climb_down=false;
 bool mode_autonav_init(void){
 	if(motors->get_armed()){//电机未锁定,禁止切换至该模式
 		Buzzer_set_ring_type(BUZZER_ERROR);
@@ -60,6 +67,14 @@ void mode_autonav(void){
 	pos_control->set_speed_xy(param->poshold_vel_max.value);
 	pos_control->set_accel_xy(param->poshold_accel_max.value);
 	attitude->set_ang_vel_yaw_max(param->yaw_vel_max.value);
+
+	if((use_gcs&&!get_gcs_connected())||(use_rc&&!rc_channels_healthy())||get_return()||(get_batt_volt()<param->lowbatt_return_volt.value)){//电量较低或地面站断开连接，强制返航
+		execute_return=true;
+	}
+	if(get_batt_volt()<param->lowbatt_land_volt.value&&(HAL_GetTick()-takeoff_time)>2000){//电量过低，强制降落
+		robot_state_desired=STATE_LANDED;
+	}
+
 	// get pilot desired lean angles
 	float target_roll, target_pitch;
 	get_pilot_desired_lean_angles(target_roll, target_pitch, param->angle_max.value, attitude->get_althold_lean_angle_max());
@@ -75,7 +90,7 @@ void mode_autonav(void){
 		ch7=-1.0f;
 	}
 
-	if(ch7<0.3f){//遥控器未连接或ROS控制
+	if((ch7<0.3f)||(use_gcs&&!get_gcs_connected())||(use_rc&&!rc_channels_healthy())){//遥控器未连接或ROS控制
 		target_roll=0.0f;
 		target_pitch=0.0f;
 		target_yaw_rate=0.0f;
@@ -115,6 +130,10 @@ void mode_autonav(void){
 
 	case AltHold_MotorStopped:
 		robot_state=STATE_STOP;
+		execute_return=false;
+		execute_land=false;
+		reach_return_alt=false;
+		set_return(false);
 		lock_time=HAL_GetTick();
 		takeoff_time=0;
 		if(robot_state_desired==STATE_FLYING||robot_state_desired==STATE_TAKEOFF){
@@ -188,7 +207,7 @@ void mode_autonav(void){
 		takeoff_alt=constrain_float(param->pilot_takeoff_alt.value,30.0f,200.0f);//最小30cm,最大200cm
 		// initiate take-off
 		if (!takeoff_running()) {
-			if(get_batt_volt()<param->lowbatt_land_volt.value){
+			if(execute_return||execute_land){
 				disarm_motors();
 				break;
 			}
@@ -201,6 +220,9 @@ void mode_autonav(void){
 			landing_alt=get_pos_z();
 			set_target_rangefinder_alt(landing_alt+takeoff_alt);
 			reset_mav_target_state();
+			ned_takeoff_pos.x=get_pos_x();
+			ned_takeoff_pos.y=get_pos_y();
+			ned_takeoff_pos.z=get_pos_z();
 			if(jump){//起飞时直接跳起
 				pos_control->get_accel_z_pid().set_integrator(0.0f);
 				pos_control->set_alt_target(get_pos_z()+jump_alt);//设置目标高度比当前高度高jump_alt
@@ -257,12 +279,19 @@ void mode_autonav(void){
 
 	case AltHold_Landed:
 		robot_state=STATE_LANDED;
+		execute_return=false;
+		execute_land=false;
+		reach_return_alt=false;
+		set_return(false);
 		takeoff_time=0;
 		// set motors to spin-when-armed if throttle below deadzone, otherwise full range (but motors will only spin at min throttle)
 		if (target_climb_rate < 0.0f) {
 			motors->set_desired_spool_state(Motors::DESIRED_SPIN_WHEN_ARMED);
 		} else {
 			motors->set_desired_spool_state(Motors::DESIRED_THROTTLE_UNLIMITED);
+		}
+		if(robot_state_desired==STATE_LANDED){
+			disarm_motors();
 		}
 		attitude->set_yaw_target_to_current_heading();
 		target_yaw=log_yaw_deg();
@@ -279,8 +308,9 @@ void mode_autonav(void){
 		motors->set_desired_spool_state(Motors::DESIRED_THROTTLE_UNLIMITED);
 
 		// call attitude controller
-		if((use_gcs&&!get_gcs_connected())||(use_rc&&!rc_channels_healthy())){
+		if(execute_return&&param->lowbatt_return_volt.value<param->lowbatt_land_volt.value){//没启用自主返航直接降落
 			robot_state_desired=STATE_LANDED;
+			execute_return=false;
 			target_roll=0.0f;
 			target_pitch=0.0f;
 			target_yaw_rate=0.0f;
@@ -291,156 +321,214 @@ void mode_autonav(void){
 			rangefinder_state.glitch_count=0;
 		}
 
-		if(ch7>=0.7&&ch7<=1.0){//姿态模式
-			robot_spec_mode=MODE_ATTITUDE;
+		if(execute_land){
 			target_yaw+=target_yaw_rate*_dt;
-			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
-			pos_control->set_xy_target(get_pos_x(), get_pos_y());
-			pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
-			if(relative_alt!=0.0f){
-				relative_alt=0.0f;
-				pos_control->set_alt_target(get_pos_z());
-				set_target_rangefinder_alt(rangefinder_state.alt_cm);
-			}
-		}else if(ch7>0.3&&ch7<0.7){//位置模式
-			robot_spec_mode=MODE_POSITION;
-			target_yaw+=target_yaw_rate*_dt;
-			get_accel_vel_limit();
 			pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
 			pos_control->calc_desired_velocity(_dt);
 			pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
-			target_roll=pos_control->get_roll();
-			target_pitch=pos_control->get_pitch();
-			attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
-			if(relative_alt!=0.0f){
-				relative_alt=0.0f;
-				pos_control->set_alt_target(get_pos_z());
-				set_target_rangefinder_alt(rangefinder_state.alt_cm);
-			}
-		}else{//自主模式
-			robot_spec_mode=MODE_AUTO;
-			if((HAL_GetTick()-takeoff_time)<2000){
-				get_accel_vel_limit();
-				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
-				target_roll=pos_control->get_roll();
-				target_pitch=pos_control->get_pitch();
-				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
-			}else{
-				get_accel_vel_limit();
-				if(get_mav_target_state()){
-					target_yaw_rate=get_mav_yaw_rate_target();
-					if(target_yaw_rate==0.0f){
-						target_yaw=(get_mav_yaw_target()*DEG_TO_RAD-yaw_delta)*RAD_TO_DEG;
-					}else{
-						target_yaw+=target_yaw_rate*_dt;
-					}
-					switch(get_coordinate_mode()){
-						case MAV_FRAME_BODY_NED:
-							pos_control->set_pilot_desired_acceleration(get_mav_ax_roll_target(), get_mav_ay_pitch_target(), target_yaw, _dt);
-							pos_control->calc_desired_velocity(_dt);
-							relative_alt=get_mav_z_target();
-							break;
-						case MAV_FRAME_VISION_NED:
-							if(get_mav_x_target()!=0.0f||get_mav_y_target()!=0.0f){
-								pos_control->set_xy_target(get_mav_x_target(),get_mav_y_target());
-							}
-							pos_control->set_desired_velocity_xy(get_mav_vx_target(), get_mav_vy_target());
-							pos_control->set_desired_accel_xy(get_mav_ax_target(), get_mav_ay_target());
-							if(get_mav_z_target()!=0.0f){
-								relative_alt=get_mav_z_target();
-							}
-							target_climb_rate=get_mav_vz_target();
-							break;
-						case MAV_FRAME_LOCAL_NED:
-							ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
-							ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
-							pos_control->set_xy_target(ned_target_pos.x,ned_target_pos.y);
-							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
-							pos_control->set_desired_accel_xy(0.0f, 0.0f);
-							relative_alt=get_mav_z_target();
-							break;
-						case MAV_FRAME_GLOBAL:
-							ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
-							ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
-							ned_dis_2d.x=ned_target_pos.x-pos_control->get_pos_target().x;//重新计算当前目标与上一个目标点的距离
-							ned_dis_2d.y=ned_target_pos.y-pos_control->get_pos_target().y;
-							if(ned_dis_2d.length()>1.0f){
-								vel_desired=ned_dis_2d.normalized()*param->mission_vel_max.value;//设置跟踪速度
-								pos_control->shift_pos_xy_target(vel_desired.x*_dt, vel_desired.y*_dt);
-							}else{
-								pos_control->set_xy_target(ned_target_pos.x,ned_target_pos.y);
-							}
-							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
-							pos_control->set_desired_accel_xy(0.0f, 0.0f);
-							alt_dis=get_mav_z_target()+landing_alt-pos_control->get_alt_target();
-							if(alt_dis>1.0f){
-								relative_alt=pos_control->get_alt_target()-landing_alt+param->pilot_speed_up.value*_dt;
-							}else if(alt_dis<-1.0f){
-								relative_alt=pos_control->get_alt_target()-landing_alt-param->pilot_speed_dn.value*_dt;
-							}else{
-								relative_alt=get_mav_z_target();
-							}
-							if(rangefinder_state.alt_healthy){
-								relative_alt=get_mav_z_target();
-								set_relative=false;
-							}else{
-								set_relative=true;
-							}
-							break;
-						default:
-							pos_control->set_desired_velocity_xy(0.0f, 0.0f);
-							pos_control->set_desired_accel_xy(0.0f, 0.0f);
-							break;
-					}
-
-					if(robot_state_desired!=STATE_LANDED&&relative_alt!=0.0f){
-						if(use_surface_track){
-							if(!USE_ODOM_Z){
-								relative_alt=MAX(relative_alt,30.0f);
-							}
-							if(set_relative){
-								set_target_rangefinder_alt(relative_alt+landing_alt-get_pos_z()+rangefinder_state.alt_cm);
-							}else{
-								set_target_rangefinder_alt(relative_alt+landing_alt);
-							}
-						}
-						if(!rangefinder_state.alt_healthy||!use_surface_track){
-							pos_control->set_alt_target(relative_alt+landing_alt);
-						}
-					}
-				}else{
-					pos_control->set_desired_velocity_xy(0.0f, 0.0f);
-					pos_control->set_desired_accel_xy(0.0f, 0.0f);
-				}
-				float stick=safe_sqrt(get_channel_pitch()*get_channel_pitch() + get_channel_roll()*get_channel_roll());
-				if(stick>0.9f){
-					if(goal_reset){
-						goal_set=true;
-						float goal_fwd=-get_channel_pitch();
-						float goal_rgt=get_channel_roll();
-						goal_2d.x = (goal_fwd*ahrs_cos_yaw() - goal_rgt*ahrs_sin_yaw());
-						goal_2d.y = (goal_fwd*ahrs_sin_yaw() + goal_rgt*ahrs_cos_yaw());
-						goal_2d=goal_2d.normalized()*10.0f*constrain_float(get_channel_8(), 0.1f, 1.0f);//默认单次探索范围1~10m
-						goal_2d.x+=get_pos_x()*0.01;
-						goal_2d.y+=get_pos_y()*0.01;
-						goal_reset=false;
-					}
-				}else if(stick<0.1f){
-					if(goal_set){
-						send_mavlink_goal_point(goal_2d.x, goal_2d.y, get_rangefinder_alt_target()*0.01f);
-					}
-					goal_reset=true;
-					goal_set=false;
-				}
-				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
-				target_roll=pos_control->get_roll();
-				target_pitch=pos_control->get_pitch();
-				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
-			}
-		}
-
-		if(get_batt_volt()<param->lowbatt_land_volt.value&&(HAL_GetTick()-takeoff_time)>2000){//电量过低，强制降落
+			attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
 			robot_state_desired=STATE_LANDED;
+		}else if(execute_return){
+			pos_control->set_desired_velocity_xy(0.0f, 0.0f);
+			if(reach_return_alt){
+				ned_target_pos.x=ned_takeoff_pos.x;
+				ned_target_pos.y=ned_takeoff_pos.y;
+				ned_dis_2d.x=ned_target_pos.x-get_pos_x();
+				ned_dis_2d.y=ned_target_pos.y-get_pos_y();
+				if(ned_dis_2d.length()<100){//距离目标点小于1m认为到达
+					execute_land=true;
+				}else{
+					if(ned_dis_2d.y>=0){
+						target_yaw=acosf(ned_dis_2d.x/ned_dis_2d.length())/M_PI*180;
+					}else{
+						target_yaw=-acosf(ned_dis_2d.x/ned_dis_2d.length())/M_PI*180;
+					}
+					smooth_dt+=_dt;
+					ned_dis_2d.x=ned_target_pos.x-ned_last_pos.x;//重新计算当前目标与上一个目标点的距离
+					ned_dis_2d.y=ned_target_pos.y-ned_last_pos.y;
+					ned_dis_2d_smooth=ned_dis_2d.normalized()*(param->mission_vel_max.value*smooth_dt+param->mission_accel_max.value*smooth_dt*smooth_dt/2);
+					if(ned_dis_2d_smooth.length()<ned_dis_2d.length()){//将目标点进行平滑修正
+						ned_target_pos.x=ned_last_pos.x+ned_dis_2d_smooth.x;
+						ned_target_pos.y=ned_last_pos.y+ned_dis_2d_smooth.y;
+					}
+					ned_dis_2d.x=ned_takeoff_pos.x-pos_control->get_pos_target().x;//重新计算当前目标与起飞点的距离
+					ned_dis_2d.y=ned_takeoff_pos.y-pos_control->get_pos_target().y;
+					if(ned_dis_2d.length()<10){//距离起飞点小于10cm认为到达
+						execute_land=true;
+					}
+				}
+				pos_control->set_xy_target(ned_target_pos.x, ned_target_pos.y);
+				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
+				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
+			}else{
+				float return_alt_cm=ned_takeoff_pos.z+param->alt_return.value;
+				float delta_cm=get_pos_z()-return_alt_cm;
+				if(get_pos_z()<return_alt_cm){
+					target_climb_rate=param->pilot_speed_up.value;
+					climb_up=true;
+				}else{
+					target_climb_rate=-param->pilot_speed_dn.value;
+					climb_down=true;
+				}
+				if((climb_up&&delta_cm>=-30.0f)||(climb_down&&delta_cm<=30.0f)){
+					reach_return_alt=true;
+					climb_up=false;
+					climb_down=false;
+					ned_last_pos.x=get_pos_x();
+					ned_last_pos.y=get_pos_y();
+					smooth_dt=0.0f;
+				}
+				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
+				attitude->input_euler_angle_roll_pitch_yaw(pos_control->get_roll(), pos_control->get_pitch(), target_yaw, true);
+			}
+		}else{
+			if(ch7>=0.7&&ch7<=1.0){//姿态模式
+				robot_spec_mode=MODE_ATTITUDE;
+				target_yaw+=target_yaw_rate*_dt;
+				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
+				pos_control->set_xy_target(get_pos_x(), get_pos_y());
+				pos_control->reset_predicted_accel(get_vel_x(), get_vel_y());
+				if(relative_alt!=0.0f){
+					relative_alt=0.0f;
+					pos_control->set_alt_target(get_pos_z());
+					set_target_rangefinder_alt(rangefinder_state.alt_cm);
+				}
+			}else if(ch7>0.3&&ch7<0.7){//位置模式
+				robot_spec_mode=MODE_POSITION;
+				target_yaw+=target_yaw_rate*_dt;
+				get_accel_vel_limit();
+				pos_control->set_pilot_desired_acceleration(target_roll, target_pitch, target_yaw, _dt);
+				pos_control->calc_desired_velocity(_dt);
+				pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
+				target_roll=pos_control->get_roll();
+				target_pitch=pos_control->get_pitch();
+				attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
+				if(relative_alt!=0.0f){
+					relative_alt=0.0f;
+					pos_control->set_alt_target(get_pos_z());
+					set_target_rangefinder_alt(rangefinder_state.alt_cm);
+				}
+			}else{//自主模式
+				robot_spec_mode=MODE_AUTO;
+				if((HAL_GetTick()-takeoff_time)<2000){
+					get_accel_vel_limit();
+					pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
+					target_roll=pos_control->get_roll();
+					target_pitch=pos_control->get_pitch();
+					attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
+				}else{
+					get_accel_vel_limit();
+					if(get_mav_target_state()){
+						target_yaw_rate=get_mav_yaw_rate_target();
+						if(target_yaw_rate==0.0f){
+							target_yaw=(get_mav_yaw_target()*DEG_TO_RAD-yaw_delta)*RAD_TO_DEG;
+						}else{
+							target_yaw+=target_yaw_rate*_dt;
+						}
+						switch(get_coordinate_mode()){
+							case MAV_FRAME_BODY_NED:
+								pos_control->set_pilot_desired_acceleration(get_mav_ax_roll_target(), get_mav_ay_pitch_target(), target_yaw, _dt);
+								pos_control->calc_desired_velocity(_dt);
+								relative_alt=get_mav_z_target();
+								break;
+							case MAV_FRAME_VISION_NED:
+								if(get_mav_x_target()!=0.0f||get_mav_y_target()!=0.0f){
+									pos_control->set_xy_target(get_mav_x_target(),get_mav_y_target());
+								}
+								pos_control->set_desired_velocity_xy(get_mav_vx_target(), get_mav_vy_target());
+								pos_control->set_desired_accel_xy(get_mav_ax_target(), get_mav_ay_target());
+								if(get_mav_z_target()!=0.0f){
+									relative_alt=get_mav_z_target();
+								}
+								target_climb_rate=get_mav_vz_target();
+								break;
+							case MAV_FRAME_LOCAL_NED:
+								ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
+								ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
+								pos_control->set_xy_target(ned_target_pos.x,ned_target_pos.y);
+								pos_control->set_desired_velocity_xy(0.0f, 0.0f);
+								pos_control->set_desired_accel_xy(0.0f, 0.0f);
+								relative_alt=get_mav_z_target();
+								break;
+							case MAV_FRAME_GLOBAL:
+								ned_target_pos.x=get_mav_x_target()*cosf(yaw_delta)+get_mav_y_target()*sinf(yaw_delta);
+								ned_target_pos.y=-get_mav_x_target()*sinf(yaw_delta)+get_mav_y_target()*cosf(yaw_delta);
+								ned_dis_2d.x=ned_target_pos.x-pos_control->get_pos_target().x;//重新计算当前目标与上一个目标点的距离
+								ned_dis_2d.y=ned_target_pos.y-pos_control->get_pos_target().y;
+								if(ned_dis_2d.length()>1.0f){
+									vel_desired=ned_dis_2d.normalized()*param->mission_vel_max.value;//设置跟踪速度
+									pos_control->shift_pos_xy_target(vel_desired.x*_dt, vel_desired.y*_dt);
+								}else{
+									pos_control->set_xy_target(ned_target_pos.x,ned_target_pos.y);
+								}
+								pos_control->set_desired_velocity_xy(0.0f, 0.0f);
+								pos_control->set_desired_accel_xy(0.0f, 0.0f);
+								alt_dis=get_mav_z_target()+landing_alt-pos_control->get_alt_target();
+								if(alt_dis>1.0f){
+									relative_alt=pos_control->get_alt_target()-landing_alt+param->pilot_speed_up.value*_dt;
+								}else if(alt_dis<-1.0f){
+									relative_alt=pos_control->get_alt_target()-landing_alt-param->pilot_speed_dn.value*_dt;
+								}else{
+									relative_alt=get_mav_z_target();
+								}
+								if(rangefinder_state.alt_healthy){
+									relative_alt=get_mav_z_target();
+									set_relative=false;
+								}else{
+									set_relative=true;
+								}
+								break;
+							default:
+								pos_control->set_desired_velocity_xy(0.0f, 0.0f);
+								pos_control->set_desired_accel_xy(0.0f, 0.0f);
+								break;
+						}
+
+						if(robot_state_desired!=STATE_LANDED&&relative_alt!=0.0f){
+							if(use_surface_track){
+								if(!USE_ODOM_Z){
+									relative_alt=MAX(relative_alt,30.0f);
+								}
+								if(set_relative){
+									set_target_rangefinder_alt(relative_alt+landing_alt-get_pos_z()+rangefinder_state.alt_cm);
+								}else{
+									set_target_rangefinder_alt(relative_alt+landing_alt);
+								}
+							}
+							if(!rangefinder_state.alt_healthy||!use_surface_track){
+								pos_control->set_alt_target(relative_alt+landing_alt);
+							}
+						}
+					}else{
+						pos_control->set_desired_velocity_xy(0.0f, 0.0f);
+						pos_control->set_desired_accel_xy(0.0f, 0.0f);
+					}
+					float stick=safe_sqrt(get_channel_pitch()*get_channel_pitch() + get_channel_roll()*get_channel_roll());
+					if(stick>0.9f){
+						if(goal_reset){
+							goal_set=true;
+							float goal_fwd=-get_channel_pitch();
+							float goal_rgt=get_channel_roll();
+							goal_2d.x = (goal_fwd*ahrs_cos_yaw() - goal_rgt*ahrs_sin_yaw());
+							goal_2d.y = (goal_fwd*ahrs_sin_yaw() + goal_rgt*ahrs_cos_yaw());
+							goal_2d=goal_2d.normalized()*10.0f*constrain_float(get_channel_8(), 0.1f, 1.0f);//默认单次探索范围1~10m
+							goal_2d.x+=get_pos_x()*0.01;
+							goal_2d.y+=get_pos_y()*0.01;
+							goal_reset=false;
+						}
+					}else if(stick<0.1f){
+						if(goal_set){
+							send_mavlink_goal_point(goal_2d.x, goal_2d.y, get_rangefinder_alt_target()*0.01f);
+						}
+						goal_reset=true;
+						goal_set=false;
+					}
+					pos_control->update_xy_controller(_dt, get_pos_x(), get_pos_y(), get_vel_x(), get_vel_y());
+					target_roll=pos_control->get_roll();
+					target_pitch=pos_control->get_pitch();
+					attitude->input_euler_angle_roll_pitch_yaw(target_roll, target_pitch, target_yaw, true);
+				}
+			}
 		}
 
 		if(robot_state_desired==STATE_LANDED){//自动降落
