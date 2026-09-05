@@ -800,7 +800,6 @@ static mavlink_timesync_t system_version;
 static mavlink_system_time_t system_sn_num;
 static float odom_dt=0.0f;
 static uint8_t heartbeat_req_id=MAV_COMP_ID_AUTOPILOT1;
-static bool g12_ant_healthy=false;
 void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t* msg_received, mavlink_status_t* status){
 	if (mavlink_parse_char(chan, data, msg_received, status)){
 		if((msg_received->compid>=MAV_COMP_ID_USER1)&&(msg_received->compid<=MAV_COMP_ID_USER20)&&(msg_received->compid!=param->uwb_tag_id.value-1+MAV_COMP_ID_USER1)){
@@ -847,17 +846,6 @@ void parse_mavlink_data(mavlink_channel_t chan, uint8_t data, mavlink_message_t*
 						if(!get_soft_armed()){
 							Buzzer_set_ring_type(BUZZER_MAV_CONNECT);
 						}
-					}
-				}
-				if(CHECK_G12){
-					if(heartbeat.base_mode&MAV_MODE_FLAG_CUSTOM_MODE_ENABLED){//天线接好
-						g12_ant_healthy=true;
-					}else if(heartbeat.base_mode&MAV_MODE_FLAG_CUSTOM_MODE_ENABLED==0){
-						g12_ant_healthy=false;
-					}
-					if(heartbeat.system_status>1&&heartbeat.system_status<40){//g12信号不好,自动返航
-						set_return(true);
-						send_mavlink_commond_ack(chan, MAV_CMD_NAV_RETURN_TO_LAUNCH, MAV_CMD_ACK_OK);
 					}
 				}
 				if(msg_received->sysid==254){
@@ -2284,7 +2272,7 @@ static uint8_t accel_cali_num=0;
 static uint32_t takeoff_time=0;
 void send_mavlink_data(mavlink_channel_t chan, uint8_t req_id)
 {
-	if(req_id!=heartbeat_req_id||(HeartBeatFlags&(EVENTBIT_HEARTBEAT_COMM_0<<(uint8_t)chan)==0)){
+	if((req_id!=heartbeat_req_id)||((HeartBeatFlags&(EVENTBIT_HEARTBEAT_COMM_0<<(uint8_t)chan))==0)){
 		return;
 	}
 	uint32_t time=HAL_GetTick();
@@ -3393,6 +3381,11 @@ void update_mag_data(void){
 				param->mag_offsets.value.x, param->mag_offsets.value.y, param->mag_offsets.value.z);
 		initial_mag=true;
 	}else{
+		if(gps_position->heading_status==4&&USE_MAG){
+			mag_filt = _mag_filter.apply(mag_correct);
+			mag_corrected=true;
+			return;
+		}
 		if(robot_state==STATE_TAKEOFF||robot_state==STATE_LANDED){//起飞时禁用磁罗盘
 			mag_corrected=false;
 			clear_mag_correct_delta=800;
@@ -3592,13 +3585,13 @@ void ekf_rf_alt(void){
 
 static RTC_TimeTypeDef sTime;
 static RTC_DateTypeDef sDate;
-static float yaw_gnss_offset=0.0f;
-static uint8_t yaw_gnss_flag=0;
+static float yaw_gnss_offset=0.0f,yaw_gnss_offset_filt=0.0f;
 static uint32_t gnss_last_update_time=0;
 static Vector2f gnss_sample_2d, ned_sample_2d_last;
 static uint8_t gnss_stabilize=0;
 static Vector3f gnss_gyro_offset, ned_pos, ned_vel;
 static float gnss_update_dt=0.0f;
+static LowPassFilterFloat yaw_gnss_offset_filter;
 bool get_gnss_stabilize(void){
 	return gnss_stabilize==10;
 }
@@ -3616,6 +3609,7 @@ void gnss_update(void){
 	}
 	if(get_gnss_state()){
 		if(!initial_gnss&&USE_MAG){
+			yaw_gnss_offset_filter.set_cutoff_frequency(10.0, 5.0);
 			gnss_origin_pos.lat=gps_position->lat;//纬度:deg*1e7
 			gnss_origin_pos.lng=gps_position->lon;//经度:deg*1e7
 			gnss_origin_pos.alt=gps_position->alt/10;//海拔：cm
@@ -3623,12 +3617,9 @@ void gnss_update(void){
 			initial_gnss=true;
 		}
 		if(gps_position->heading_status==4&&USE_MAG){
-			if(yaw_gnss_flag>=20){
-				yaw_gnss_offset=wrap_PI(gps_position->heading*DEG_TO_RAD-M_PI_2-yaw_rad);
-				ahrs->set_declination(ahrs->get_declination()+yaw_gnss_offset);
-				yaw_gnss_flag=0;
-			}
-			yaw_gnss_flag++;
+			yaw_gnss_offset=wrap_PI(gps_position->heading*DEG_TO_RAD-M_PI_2-yaw_rad);
+			yaw_gnss_offset_filt = yaw_gnss_offset_filter.apply(yaw_gnss_offset);
+			ahrs->set_declination(ahrs->get_declination()+yaw_gnss_offset_filt);
 		}
 		sDate.Year=gps_position->year-1970;
 		sDate.Month=gps_position->month;
@@ -3936,7 +3927,6 @@ void ekf_odom_xy(void){
 }
 
 static uint32_t update_gnss_time=0;
-static int16_t flow_odom_tick=0;
 void ekf_gnss_xy(void){
 #if USE_GNSS
 	if(!ahrs->is_initialed()||(!ahrs_healthy)){
@@ -4511,7 +4501,7 @@ bool arm_motors(void)
 	}
 	//TODO: add other pre-arm check
 	if(PREARM_CHECK){
-		if (!ahrs_healthy||!initial_baro||(CHECK_G12&&!g12_ant_healthy)||((use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||(USE_ODOMETRY&&(odom_2d==0||!odom_safe))){
+		if (!ahrs_healthy||!initial_baro||((use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||(USE_ODOMETRY&&(odom_2d==0||!odom_safe))){
 			Buzzer_set_ring_type(BUZZER_ERROR);
 			return false;//传感器异常，禁止电机启动
 		}
@@ -4577,7 +4567,7 @@ void unlock_motors(void){
 	}
 	//TODO: add other pre-arm check
 	if(PREARM_CHECK){
-		if (!ahrs_healthy||!initial_baro||(CHECK_G12&&!g12_ant_healthy)||((use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||(USE_ODOMETRY&&(odom_2d==0||!odom_safe))){
+		if (!ahrs_healthy||!initial_baro||((use_rangefinder&&!rangefinder_state.enabled)&&(!get_gnss_state()||!get_gnss_stabilize()))||!update_pos||(USE_ODOMETRY&&(odom_2d==0||!odom_safe))){
 			Buzzer_set_ring_type(BUZZER_ERROR);
 			return;//传感器异常，禁止电机启动
 		}

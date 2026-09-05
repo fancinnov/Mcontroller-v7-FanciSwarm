@@ -134,8 +134,6 @@
 //是否使用C12热成像云台相机
 #define USE_C12 0 // 启用：1 不启用：0
 
-#define CHECK_G12 0 // 启用：1 不启用：0
-
 //是否使用CH8控制舵机
 #define USE_CH8_SERVO 0
 
@@ -169,6 +167,6 @@
 #endif
 
 #define VERSION_HARDWARE 721
-#define VERSION_FIRMWARE 2026083001
+#define VERSION_FIRMWARE 2026090301
 
 #endif /* INCLUDE_CONFIG_H_ */
