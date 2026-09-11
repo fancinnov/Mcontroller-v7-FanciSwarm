@@ -3381,11 +3381,6 @@ void update_mag_data(void){
 				param->mag_offsets.value.x, param->mag_offsets.value.y, param->mag_offsets.value.z);
 		initial_mag=true;
 	}else{
-		if(gps_position->heading_status==4&&USE_MAG){
-			mag_filt = _mag_filter.apply(mag_correct);
-			mag_corrected=true;
-			return;
-		}
 		if(robot_state==STATE_TAKEOFF||robot_state==STATE_LANDED){//起飞时禁用磁罗盘
 			mag_corrected=false;
 			clear_mag_correct_delta=800;
@@ -3591,7 +3586,8 @@ static Vector2f gnss_sample_2d, ned_sample_2d_last;
 static uint8_t gnss_stabilize=0;
 static Vector3f gnss_gyro_offset, ned_pos, ned_vel;
 static float gnss_update_dt=0.0f;
-static LowPassFilterFloat yaw_gnss_offset_filter;
+static uint8_t gnss_tick=0;
+static float declination=0.0f;
 bool get_gnss_stabilize(void){
 	return gnss_stabilize==10;
 }
@@ -3609,17 +3605,23 @@ void gnss_update(void){
 	}
 	if(get_gnss_state()){
 		if(!initial_gnss&&USE_MAG){
-			yaw_gnss_offset_filter.set_cutoff_frequency(10.0, 5.0);
 			gnss_origin_pos.lat=gps_position->lat;//纬度:deg*1e7
 			gnss_origin_pos.lng=gps_position->lon;//经度:deg*1e7
 			gnss_origin_pos.alt=gps_position->alt/10;//海拔：cm
-			ahrs->set_declination(radians(Declination::get_declination((float)gnss_origin_pos.lat*1e-7, (float)gnss_origin_pos.lng*1e-7)));
+			declination=radians(Declination::get_declination((float)gnss_origin_pos.lat*1e-7, (float)gnss_origin_pos.lng*1e-7));
+			ahrs->set_declination(declination);
 			initial_gnss=true;
 		}
-		if(gps_position->heading_status==4&&USE_MAG){
-			yaw_gnss_offset=wrap_PI(gps_position->heading*DEG_TO_RAD-M_PI_2-yaw_rad);
-			yaw_gnss_offset_filt = yaw_gnss_offset_filter.apply(yaw_gnss_offset);
-			ahrs->set_declination(ahrs->get_declination()+yaw_gnss_offset_filt);
+		if(gps_position->heading_status==4&&USE_MAG&&clear_mag_correct_delta==0){
+			yaw_gnss_offset=wrap_PI(wrap_PI(gps_position->heading*DEG_TO_RAD-M_PI_2)-yaw_rad);
+			yaw_gnss_offset_filt+=yaw_gnss_offset;
+			gnss_tick++;
+			if(gnss_tick==10){
+				gnss_tick=0;
+				yaw_gnss_offset_filt*=0.1;
+				ahrs->set_declination(yaw_gnss_offset_filt);
+				yaw_gnss_offset_filt=0.0;
+			}
 		}
 		sDate.Year=gps_position->year-1970;
 		sDate.Month=gps_position->month;
